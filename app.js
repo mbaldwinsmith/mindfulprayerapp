@@ -42,7 +42,7 @@ async function storeDeviceCredential(pin) {
     if (!navigator.credentials || typeof window.PasswordCredential === "undefined") return false;
     const credential = new window.PasswordCredential({
       id: DEVICE_CREDENTIAL_ID,
-      name: "Mindfulness & Prayer Tracker",
+      name: "Catholic Mindfulness and Prayer tracker",
       password: pin
     });
     await navigator.credentials.store(credential);
@@ -1272,7 +1272,7 @@ function App() {
     className: "flex items-center gap-4 rounded-3xl border border-white/60 bg-white/75 px-5 py-4 shadow-lg shadow-emerald-500/20 backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
   }, /*#__PURE__*/React.createElement("img", {
     src: BRUSHSTROKE_CROSS,
-    alt: "Mindfulness and Prayer Tracker logo",
+    alt: "Catholic Mindfulness and Prayer tracker logo",
     className: "h-12 w-12 shrink-0 rounded-2xl border border-white/50 bg-white/70 p-2 shadow-md shadow-emerald-500/10 dark:border-white/10 dark:bg-white/10",
     width: "48",
     height: "48",
@@ -1281,7 +1281,7 @@ function App() {
     className: "flex flex-col"
   }, /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100"
-  }, "Mindfulness and Prayer Tracker"), /*#__PURE__*/React.createElement("p", {
+  }, "Catholic Mindfulness and Prayer tracker"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-emerald-600/80 sm:text-sm dark:text-emerald-300/80"
   }, "Gentle rhythms for prayer, stillness, and compassion.")), /*#__PURE__*/React.createElement("div", {
     className: "ml-auto flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
@@ -3194,7 +3194,7 @@ function addDaysISO(dateISO, days) {
 }
 function anyPracticeDone(day) {
   if (!day) return false;
-  return day.morning.consecration || day.morning.angelus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.bodyBlessing || day.midday.angelus || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.nightSilence;
+  return day.morning.consecration || day.morning.angelus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.angelus || day.midday.bodyBlessing || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.nightSilence;
 }
 function calcStreak(data) {
   let d = new Date();
@@ -3248,8 +3248,8 @@ function calcTotals(data) {
     if (morning.consecration) acc.morningConsecration += 1;
     if (morning.angelus) acc.morningAngelus += 1;
     if (midday.stillness) acc.middayStillness += 1;
-    if (midday.bodyBlessing) acc.middayBodyBlessing += 1;
     if (midday.angelus) acc.middayAngelus += 1;
+    if (midday.bodyBlessing) acc.middayBodyBlessing += 1;
     if (evening.examen) acc.eveningExamen += 1;
     if (evening.angelus) acc.eveningAngelus += 1;
     if (evening.nightSilence) acc.eveningNightSilence += 1;
@@ -3271,8 +3271,8 @@ function calcTotals(data) {
     morningConsecration: 0,
     morningAngelus: 0,
     middayStillness: 0,
-    middayBodyBlessing: 0,
     middayAngelus: 0,
+    middayBodyBlessing: 0,
     eveningExamen: 0,
     eveningAngelus: 0,
     eveningNightSilence: 0,

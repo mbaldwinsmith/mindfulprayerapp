@@ -1,7 +1,7 @@
 {
-  "name": "Mindfulness and Prayer Tracker",
-  "short_name": "Prayer Tracker",
-  "description": "Mindfulness & prayer tracker with meditation timer, journaling, and weekly anchors.",
+  "name": "Catholic Mindfulness and Prayer tracker",
+  "short_name": "Catholic Tracker",
+  "description": "Catholic mindfulness and prayer tracker with meditation timer, journaling, and weekly anchors.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
