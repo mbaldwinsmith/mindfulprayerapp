@@ -1,4 +1,4 @@
-# Zen-Catholic Mindfulness & Prayer Tracker (GitHub Pages)
+# Mindfulness & Prayer Tracker
 A zero-backend PWA for tracking prayer, mindfulness, and self-compassion practices.
 
 ## Quick start (GitHub Pages)
