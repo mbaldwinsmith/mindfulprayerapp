@@ -59,6 +59,7 @@ const blankDay = date => ({
   morning: {
     consecration: false,
     angelus: false,
+    benedictus: false,
     breathMinutes: 0,
     jesusPrayerCount: 0
   },
@@ -70,6 +71,7 @@ const blankDay = date => ({
   evening: {
     examen: false,
     angelus: false,
+    magnificat: false,
     rosaryDecades: 0,
     nightSilence: false
   },
@@ -219,6 +221,8 @@ const DEFAULT_PREFERENCES = {
 };
 const MARIAN_CONSECRATION_URL = "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/";
 const ANGELUS_PRAYER_URL = "https://theangelusprayer.com/angelus-prayer/";
+const BENEDICTUS_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/68-79";
+const MAGNIFICAT_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/46-55";
 const BODY_BLESSING_TOOLTIP = "A gentle practice of tracing blessings over your body, inviting Christ's healing and peace.";
 const ROSARY_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ROSARY_MYSTERIES = {
@@ -571,6 +575,13 @@ const BASE_METRIC_OPTIONS = [{
   weeklyUnit: "days",
   aggregate: SUM_AGGREGATE
 }, {
+  value: "morningBenedictus",
+  label: "Recite the Benedictus",
+  accessor: day => day.morning.benedictus ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
   value: "middayStillness",
   label: "Midday stillness pause",
   accessor: day => day.midday.stillness ? 1 : 0,
@@ -602,6 +613,13 @@ const BASE_METRIC_OPTIONS = [{
   value: "eveningAngelus",
   label: "Evening Angelus",
   accessor: day => day.evening.angelus ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "eveningMagnificat",
+  label: "Recite the Magnificat",
+  accessor: day => day.evening.magnificat ? 1 : 0,
   unit: "",
   weeklyUnit: "days",
   aggregate: SUM_AGGREGATE
@@ -641,6 +659,7 @@ const normalizeDay = (input = {}) => ({
   morning: {
     consecration: input.morning?.consecration ?? false,
     angelus: input.morning?.angelus ?? false,
+    benedictus: input.morning?.benedictus ?? false,
     breathMinutes: input.morning?.breathMinutes ?? 0,
     jesusPrayerCount: input.morning?.jesusPrayerCount ?? 0
   },
@@ -652,6 +671,7 @@ const normalizeDay = (input = {}) => ({
   evening: {
     examen: input.evening?.examen ?? false,
     angelus: input.evening?.angelus ?? false,
+    magnificat: input.evening?.magnificat ?? false,
     rosaryDecades: input.evening?.rosaryDecades ?? 0,
     nightSilence: input.evening?.nightSilence ?? false
   },
@@ -680,10 +700,12 @@ function dayHasActivity(day) {
   if (Array.isArray(day.contextTags) && day.contextTags.some(tag => String(tag || "").trim())) return true;
   if (day.mood) return true;
   if (day.morning?.consecration) return true;
+  if (day.morning?.benedictus) return true;
   if ((day.morning?.breathMinutes || 0) > 0) return true;
   if ((day.morning?.jesusPrayerCount || 0) > 0) return true;
   if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
   if (day.evening?.examen || day.evening?.nightSilence) return true;
+  if (day.evening?.magnificat) return true;
   if ((day.evening?.rosaryDecades || 0) > 0) return true;
   if ((day.temptations?.urgesNoted || 0) > 0) return true;
   if ((day.temptations?.victories || 0) > 0) return true;
@@ -1335,6 +1357,21 @@ function App() {
         angelus: v
       }
     }))
+  }), /*#__PURE__*/React.createElement(ToggleRow, {
+    label: /*#__PURE__*/React.createElement("a", {
+      href: BENEDICTUS_PRAYER_URL,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+    }, "Recite the Benedictus"),
+    checked: d.morning.benedictus,
+    onChange: v => setDay(date, x => ({
+      ...x,
+      morning: {
+        ...x.morning,
+        benedictus: v
+      }
+    }))
   }), /*#__PURE__*/React.createElement(TimerRow, {
     label: "Breath Meditation (min)",
     minutes: d.morning.breathMinutes,
@@ -1425,6 +1462,21 @@ function App() {
       evening: {
         ...x.evening,
         angelus: v
+      }
+    }))
+  }), /*#__PURE__*/React.createElement(ToggleRow, {
+    label: /*#__PURE__*/React.createElement("a", {
+      href: MAGNIFICAT_PRAYER_URL,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+    }, "Recite the Magnificat"),
+    checked: d.evening.magnificat,
+    onChange: v => setDay(date, x => ({
+      ...x,
+      evening: {
+        ...x.evening,
+        magnificat: v
       }
     }))
   }), /*#__PURE__*/React.createElement(ToggleRow, {
@@ -1619,6 +1671,10 @@ function App() {
     className: "tabular-nums font-semibold"
   }, totals.morningAngelus)), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Recite the Benedictus"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.morningBenedictus)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Midday stillness pause"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
   }, totals.middayStillness)), /*#__PURE__*/React.createElement("div", {
@@ -1638,6 +1694,10 @@ function App() {
   }, /*#__PURE__*/React.createElement("span", null, "Evening Angelus"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
   }, totals.eveningAngelus)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Recite the Magnificat"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.eveningMagnificat)), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Silence before sleep"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
@@ -1843,7 +1903,7 @@ function RecentEntryRow({
     month: "short",
     day: "numeric"
   });
-  const dailyFlags = [Boolean(day.morning?.consecration), Boolean(day.morning?.angelus), Boolean(day.midday?.stillness), Boolean(day.midday?.angelus), Boolean(day.midday?.bodyBlessing), Boolean(day.evening?.examen), Boolean(day.evening?.angelus), Boolean(day.evening?.nightSilence)];
+  const dailyFlags = [Boolean(day.morning?.consecration), Boolean(day.morning?.angelus), Boolean(day.morning?.benedictus), Boolean(day.midday?.stillness), Boolean(day.midday?.angelus), Boolean(day.midday?.bodyBlessing), Boolean(day.evening?.examen), Boolean(day.evening?.angelus), Boolean(day.evening?.magnificat), Boolean(day.evening?.nightSilence)];
   const dailyCompleted = dailyFlags.filter(Boolean).length;
   const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).length;
   const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).map(key => WEEKLY_ANCHOR_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1));
@@ -1859,11 +1919,13 @@ function RecentEntryRow({
   const practiceBadges = [];
   if (day.morning?.consecration) practiceBadges.push("🌅 Consecration");
   if (day.morning?.angelus) practiceBadges.push("🔔 Morning Angelus");
+  if (day.morning?.benedictus) practiceBadges.push("📜 Benedictus");
   if (day.midday?.stillness) practiceBadges.push("🕰️ Stillness pause");
   if (day.midday?.angelus) practiceBadges.push("🔔 Midday Angelus");
   if (day.midday?.bodyBlessing) practiceBadges.push("🤲 Body blessing");
   if (day.evening?.examen) practiceBadges.push("🌙 Evening examen");
   if (day.evening?.angelus) practiceBadges.push("🔔 Evening Angelus");
+  if (day.evening?.magnificat) practiceBadges.push("🎶 Magnificat");
   if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
   const customMetricChips = [];
   if (customMetricMap && customMetricMap.size) {
@@ -3194,7 +3256,7 @@ function addDaysISO(dateISO, days) {
 }
 function anyPracticeDone(day) {
   if (!day) return false;
-  return day.morning.consecration || day.morning.angelus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.angelus || day.midday.bodyBlessing || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.nightSilence;
+  return day.morning.consecration || day.morning.angelus || day.morning.benedictus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.angelus || day.midday.bodyBlessing || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.magnificat || day.evening.nightSilence;
 }
 function calcStreak(data) {
   let d = new Date();
@@ -3247,11 +3309,13 @@ function calcTotals(data) {
     acc.urgesNoted += temptations.urgesNoted || 0;
     if (morning.consecration) acc.morningConsecration += 1;
     if (morning.angelus) acc.morningAngelus += 1;
+    if (morning.benedictus) acc.morningBenedictus += 1;
     if (midday.stillness) acc.middayStillness += 1;
     if (midday.angelus) acc.middayAngelus += 1;
     if (midday.bodyBlessing) acc.middayBodyBlessing += 1;
     if (evening.examen) acc.eveningExamen += 1;
     if (evening.angelus) acc.eveningAngelus += 1;
+    if (evening.magnificat) acc.eveningMagnificat += 1;
     if (evening.nightSilence) acc.eveningNightSilence += 1;
     if (weekly.mass) acc.weeklyMass += 1;
     if (weekly.confession) acc.weeklyConfession += 1;
@@ -3270,11 +3334,13 @@ function calcTotals(data) {
     urgesNoted: 0,
     morningConsecration: 0,
     morningAngelus: 0,
+    morningBenedictus: 0,
     middayStillness: 0,
     middayAngelus: 0,
     middayBodyBlessing: 0,
     eveningExamen: 0,
     eveningAngelus: 0,
+    eveningMagnificat: 0,
     eveningNightSilence: 0,
     weeklyMass: 0,
     weeklyConfession: 0,
@@ -3425,7 +3491,7 @@ function monthDots(dateISO, data) {
   return arr;
 }
 function toCSV(data, customMetrics = []) {
-  const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "RosaryDecades", "NightSilence", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
+  const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "MorningBenedictus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "EveningMagnificat", "RosaryDecades", "NightSilence", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
   customMetrics.forEach(metric => header.push(metric.name || metric.id));
   const rows = [header.join(",")];
   const keys = Object.keys(data).sort();
@@ -3433,7 +3499,7 @@ function toCSV(data, customMetrics = []) {
     const day = data[k];
     const tags = Array.isArray(day.contextTags) ? day.contextTags.join(" ") : "";
     const mood = day.mood || "";
-    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.angelus ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.angelus ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.angelus ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
+    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.angelus ? 1 : 0, day.morning.benedictus ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.angelus ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.angelus ? 1 : 0, day.evening.magnificat ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
       const raw = day.customMetrics?.[metric.id];
       return Number(raw ?? 0);
     })].join(","));
