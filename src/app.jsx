@@ -183,7 +183,7 @@ const DEFAULT_PREFERENCES = {
 };
 
 const MARIAN_CONSECRATION_URL =
-  "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/#:~:text=Maximilian%20Kolbe-,O%20IMMACULATA%2C,ourselves%20to%20you%20our%20Mother.";
+  "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/";
 
 const BODY_BLESSING_TOOLTIP =
   "A gentle practice of tracing blessings over your body, inviting Christ's healing and peace.";
