@@ -24,6 +24,8 @@ const blankDay = (date) => ({
   weekly: { mass: false, confession: false, fasting: false, accountability: false },
 });
 
+const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
+
 const normalizeDay = (input = {}) => ({
   date: input.date || todayISO(),
   scripture: input.scripture ?? "",
@@ -169,6 +171,17 @@ function App() {
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
   const totals = useMemo(() => calcTotals(data), [data]);
+  const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
+  const weekStartLabel = useMemo(() => {
+    const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
+    if (!startDate || Number.isNaN(startDate.getTime())) return "--";
+    return startDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }, [weekSummary.start]);
+  const weekEndLabel = useMemo(() => {
+    const endDate = weekSummary?.end ? new Date(weekSummary.end) : null;
+    if (!endDate || Number.isNaN(endDate.getTime())) return "--";
+    return endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }, [weekSummary.end]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -299,6 +312,45 @@ function App() {
                 }))
               }
             />
+          </Card>
+
+          <Card title="Weekly Summary">
+            <div className="text-sm grid gap-2">
+              <div>
+                Week of <b>{weekStartLabel}</b> –<b> {weekEndLabel}</b>
+              </div>
+              <div>Breath meditation: <b>{weekSummary.totals.breathMinutes}</b> min</div>
+              <div>Jesus Prayer: <b>{weekSummary.totals.jesusPrayerCount}</b></div>
+              <div>Rosary decades: <b>{weekSummary.totals.rosaryDecades}</b></div>
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  <span>Weekly Anchors</span>
+                  <span>
+                    {weekSummary.completedCount}/{weekSummary.totalAnchors} done
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-1">
+                  {WEEKLY_ANCHOR_KEYS.map((k) => {
+                    const complete = weekSummary.anchors[k];
+                    return (
+                      <div key={k} className="flex items-center justify-between">
+                        <span className="capitalize">{k}</span>
+                        <span
+                          className={
+                            "text-xs font-medium " +
+                            (complete
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-zinc-500 dark:text-zinc-400")
+                          }
+                        >
+                          {complete ? "Completed" : "Pending"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </Card>
 
           <Card title="Stats">
@@ -541,8 +593,7 @@ function SmallCounter({ label, value, onChange }) {
 
 function WeeklyAnchors({ date, setData, data }) {
   const week = useMemo(() => weekRange(new Date(date)), [date]);
-  const flags = ["mass", "confession", "fasting", "accountability"];
-  const all = flags.reduce((acc, k) => {
+  const all = WEEKLY_ANCHOR_KEYS.reduce((acc, k) => {
     acc[k] = week.every((d) => (data[ymd(d)] ?? blankDay(ymd(d))).weekly[k]);
     return acc;
   }, {});
@@ -559,7 +610,7 @@ function WeeklyAnchors({ date, setData, data }) {
 
   return (
     <div className="grid gap-2 text-sm">
-      {flags.map((k) => (
+      {WEEKLY_ANCHOR_KEYS.map((k) => (
         <label key={k} className="flex items-center justify-between">
           <span className="capitalize">{k}</span>
           <input
@@ -813,6 +864,54 @@ function calcTotals(data) {
     },
     { breathMinutes: 0, jesusPrayerCount: 0, rosaryDecades: 0, victories: 0, lapses: 0 },
   );
+}
+
+function calcWeekSummary(data, dateISO) {
+  const target = new Date(dateISO);
+  if (Number.isNaN(target.getTime())) {
+    const anchors = WEEKLY_ANCHOR_KEYS.reduce((acc, key) => {
+      acc[key] = false;
+      return acc;
+    }, {});
+    return {
+      start: dateISO,
+      end: dateISO,
+      totals: { breathMinutes: 0, jesusPrayerCount: 0, rosaryDecades: 0 },
+      anchors,
+      completedCount: 0,
+      totalAnchors: WEEKLY_ANCHOR_KEYS.length,
+    };
+  }
+
+  const week = weekRange(target);
+  const totals = { breathMinutes: 0, jesusPrayerCount: 0, rosaryDecades: 0 };
+  const anchors = WEEKLY_ANCHOR_KEYS.reduce((acc, key) => {
+    acc[key] = true;
+    return acc;
+  }, {});
+
+  week.forEach((dt) => {
+    const key = ymd(dt);
+    const day = data[key] ? normalizeDay(data[key]) : blankDay(key);
+    totals.breathMinutes += day.morning.breathMinutes || 0;
+    totals.jesusPrayerCount += day.morning.jesusPrayerCount || 0;
+    totals.rosaryDecades += day.evening.rosaryDecades || 0;
+
+    WEEKLY_ANCHOR_KEYS.forEach((anchor) => {
+      if (!day.weekly[anchor]) anchors[anchor] = false;
+    });
+  });
+
+  const completedCount = WEEKLY_ANCHOR_KEYS.reduce((acc, key) => acc + (anchors[key] ? 1 : 0), 0);
+
+  return {
+    start: ymd(week[0]),
+    end: ymd(week[week.length - 1]),
+    totals,
+    anchors,
+    completedCount,
+    totalAnchors: WEEKLY_ANCHOR_KEYS.length,
+  };
 }
 
 function weekRange(d) {
