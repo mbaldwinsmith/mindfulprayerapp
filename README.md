@@ -1,8 +1,6 @@
 # Mindfulness & Prayer Tracker
 A zero-backend PWA for tracking prayer, mindfulness, and self-compassion practices.
 
-[View the finished app](https://mbaldwinsmith.github.io/mindfulprayerapp/)
-
 ## Quick start (GitHub Pages)
 1. Create a public repo on GitHub, e.g. `zc-tracker`.
 2. Add these files at the **repo root**: `index.html`, `manifest.json`, `sw.js`, `icon-192.png`, `icon-512.png`, `.nojekyll`.
@@ -20,6 +18,11 @@ All data is stored **locally in your browser** (localStorage). Use **Export JSON
 ## Notes
 - If you use a custom domain, add a `CNAME` file with your domain.
 - To update the app, push new commits; the service worker will refresh the cache automatically.
-  
+
+
 ## Icons
 This build uses custom brushstroke cross-in-enso icons for both 192×192 and 512×512 sizes.
+
+
+## Live App
+You can try the app here: [Mindfulness & Prayer Tracker on GitHub Pages](https://mbaldwinsmith.github.io/mindfulprayerapp/)

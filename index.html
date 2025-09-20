@@ -39,6 +39,46 @@
     const PIN_KEY = "zc_pin_v1";
     const THEME_KEY = "zc_theme";
 
+    // Export current data blob as JSON download
+    function exportDataJSON(data) {
+      try {
+        const blob = new Blob([JSON.stringify(data || {}, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `prayer-tracker-backup-${todayISO()}.json`; a.click();
+        URL.revokeObjectURL(url);
+        return true;
+      } catch (e) { alert("Export failed: " + e.message); return false; }
+    }
+
+    // Reset app: offer backup, unregister SW, clear storage, reload
+    async function resetApp() {
+      try {
+        const raw = localStorage.getItem(STORE_KEY);
+        const data = raw ? JSON.parse(raw) : {};
+        const wantsBackup = confirm("Back up your data before reset? Click OK to download a JSON backup, or Cancel to skip.");
+        if (wantsBackup) exportDataJSON(data);
+
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        // Clear app-specific keys
+        localStorage.removeItem(STORE_KEY);
+        localStorage.removeItem(PIN_KEY);
+        localStorage.removeItem(THEME_KEY);
+
+        // Final confirmation
+        alert("App data cleared. Reloading now…");
+        location.reload();
+      } catch (e) {
+        alert("Reset failed: " + e.message);
+      }
+    }
+
+    const PIN_KEY = "zc_pin_v1";
+    const THEME_KEY = "zc_theme";
+
     const blankDay = (date) => ({
       date,
       scripture: "",
@@ -49,6 +89,41 @@
       temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
       weekly: { mass: false, confession: false, fasting: false, accountability: false },
     });
+
+    // Added: normalize missing fields from older saved data
+    function normalizeDay(input) {
+      const d = input || {};
+      return {
+        date: d.date || todayISO(),
+        scripture: d.scripture ?? "",
+        notes: d.notes ?? "",
+        morning: {
+          consecration: d.morning?.consecration ?? false,
+          breathMinutes: d.morning?.breathMinutes ?? 0,
+          jesusPrayerCount: d.morning?.jesusPrayerCount ?? 0,
+        },
+        midday: {
+          stillness: d.midday?.stillness ?? false,
+          bodyBlessing: d.midday?.bodyBlessing ?? false,
+        },
+        evening: {
+          examen: d.evening?.examen ?? false,
+          rosaryDecades: d.evening?.rosaryDecades ?? 0,
+          nightSilence: d.evening?.nightSilence ?? false,
+        },
+        temptations: {
+          urgesNoted: d.temptations?.urgesNoted ?? 0,
+          lapses: d.temptations?.lapses ?? 0,
+          victories: d.temptations?.victories ?? 0,
+        },
+        weekly: {
+          mass: d.weekly?.mass ?? false,
+          confession: d.weekly?.confession ?? false,
+          fasting: d.weekly?.fasting ?? false,
+          accountability: d.weekly?.accountability ?? false,
+        },
+      };
+    }
 
     function useTheme() {
       const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || "light");
@@ -190,6 +265,14 @@
 
               <Card title="Backup / Restore">
                 <BackupControls data={data} setData={setData} />
+              </Card>
+                          <Card title="Settings & Safety">
+                <div className="grid gap-2 text-sm">
+                  <button className="btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30" onClick={resetApp}>
+                    Reset App (export → clear → reload)
+                  </button>
+                  <p className="text-xs text-zinc-500">This will optionally back up your data as JSON, then clear local storage and unregister the service worker before reloading.</p>
+                </div>
               </Card>
             </div>
 

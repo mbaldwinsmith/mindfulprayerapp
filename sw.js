@@ -1,4 +1,4 @@
-const CACHE_NAME = "prayer-tracker-v1";
+const CACHE_NAME = "prayer-tracker-v3";
 const CORE_ASSETS = [
   "./",
   "./index.html",
