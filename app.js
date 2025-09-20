@@ -214,7 +214,7 @@ const DEFAULT_PREFERENCES = {
   spotlightIndex: 0,
   tomorrowPlan: ""
 };
-const MARIAN_CONSECRATION_URL = "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/#:~:text=Maximilian%20Kolbe-,O%20IMMACULATA%2C,ourselves%20to%20you%20our%20Mother.";
+const MARIAN_CONSECRATION_URL = "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/";
 const BODY_BLESSING_TOOLTIP = "A gentle practice of tracing blessings over your body, inviting Christ's healing and peace.";
 const ROSARY_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ROSARY_MYSTERIES = {
