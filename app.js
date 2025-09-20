@@ -345,6 +345,73 @@ const normalizeDay = (input = {}) => ({
   contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
   customMetrics: input.customMetrics ?? {}
 });
+function dayHasActivity(day) {
+  if (!day) return false;
+  if (typeof day.scripture === "string" && day.scripture.trim()) return true;
+  if (typeof day.notes === "string" && day.notes.trim()) return true;
+  if (Array.isArray(day.contextTags) && day.contextTags.some(tag => String(tag || "").trim())) return true;
+  if (day.mood) return true;
+  if (day.morning?.consecration) return true;
+  if ((day.morning?.breathMinutes || 0) > 0) return true;
+  if ((day.morning?.jesusPrayerCount || 0) > 0) return true;
+  if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
+  if (day.evening?.examen || day.evening?.nightSilence) return true;
+  if ((day.evening?.rosaryDecades || 0) > 0) return true;
+  if ((day.temptations?.urgesNoted || 0) > 0) return true;
+  if ((day.temptations?.victories || 0) > 0) return true;
+  if ((day.temptations?.lapses || 0) > 0) return true;
+  if (WEEKLY_ANCHOR_KEYS.some(key => day.weekly?.[key])) return true;
+  if (day.customMetrics && typeof day.customMetrics === "object") {
+    for (const value of Object.values(day.customMetrics)) {
+      const numeric = typeof value === "number" ? value : Number(value);
+      if (Number.isFinite(numeric) && Math.abs(numeric) > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function collectRecentEntries(data, {
+  tag = "",
+  limit = 10
+} = {}) {
+  if (!data) return {
+    entries: [],
+    totalMatching: 0
+  };
+  const normalizedTag = typeof tag === "string" ? tag.trim() : "";
+  const keys = Object.keys(data || {}).filter(Boolean).sort((a, b) => a < b ? 1 : a > b ? -1 : 0);
+  const max = Number.isFinite(limit) && limit > 0 ? limit : Infinity;
+  const entries = [];
+  let totalMatching = 0;
+  keys.forEach(key => {
+    const raw = data[key];
+    if (!raw) return;
+    const normalized = normalizeDay({
+      ...raw,
+      date: key
+    });
+    if (!dayHasActivity(normalized)) return;
+    if (normalizedTag && !normalized.contextTags.includes(normalizedTag)) return;
+    totalMatching += 1;
+    if (entries.length < max) {
+      entries.push(normalized);
+    }
+  });
+  return {
+    entries,
+    totalMatching
+  };
+}
+function truncateText(value, maxLength = 120) {
+  if (value == null) return "";
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
 function exportDataJSON(data) {
   try {
     const blob = new Blob([JSON.stringify(data || {}, null, 2)], {
@@ -776,6 +843,8 @@ function App() {
   }, [preferences.customMetrics]);
   const [selectedMetric, setSelectedMetric] = useState(() => metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
   const [metricView, setMetricView] = useState("daily");
+  const [historyTag, setHistoryTag] = useState("");
+  const historyLimit = 10;
   useEffect(() => {
     if (!metricOptions.some(option => option.value === selectedMetric)) {
       setSelectedMetric(metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
@@ -791,6 +860,12 @@ function App() {
   const displayedMetricSeries = metricView === "weekly" ? metricSeries.weekly : metricSeries.daily;
   const metricSummary = useMemo(() => computeMetricSummary(metricSeries, metricView), [metricSeries, metricView]);
   const metricHighlights = useMemo(() => computeMetricHighlights(metricSeries, metricConfig, metricView), [metricSeries, metricConfig, metricView]);
+  const historyEntries = useMemo(() => collectRecentEntries(data, {
+    tag: historyTag,
+    limit: historyLimit
+  }), [data, historyTag]);
+  const recentEntries = historyEntries.entries;
+  const historyCount = historyEntries.totalMatching;
   const weekStartLabel = useMemo(() => {
     const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
     if (!startDate || Number.isNaN(startDate.getTime())) return "--";
@@ -809,6 +884,12 @@ function App() {
   }, [weekSummary.end]);
   const customTotals = useMemo(() => calcCustomTotals(data, preferences.customMetrics), [data, preferences.customMetrics]);
   const tagSummary = useMemo(() => summarizeTags(data), [data]);
+  useEffect(() => {
+    if (!historyTag) return;
+    if (!tagSummary.some(([tag]) => tag === historyTag)) {
+      setHistoryTag("");
+    }
+  }, [historyTag, tagSummary]);
   const moodSummary = useMemo(() => summarizeMood(data), [data]);
   const latestMoodMeta = useMemo(() => getMoodMeta(moodSummary.latest?.mood), [moodSummary]);
   const {
@@ -823,6 +904,16 @@ function App() {
       spotlightIndex: (prev.spotlightIndex + 1) % PRACTICE_SPOTLIGHTS.length
     }));
   }, [updatePreferences]);
+  const jumpToDate = useCallback(targetDate => {
+    if (!targetDate) return;
+    setDate(targetDate);
+    if (typeof window !== "undefined" && window.scrollTo) {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+  }, [setDate]);
   useEffect(() => {
     const onKey = e => {
       if (e.key === "ArrowLeft") setDate(prevDay(date, -1));
@@ -835,35 +926,43 @@ function App() {
     tryUnlock: tryUnlock
   });
   return /*#__PURE__*/React.createElement("div", {
-    className: "min-h-screen"
+    className: "app-shell"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative z-10 flex min-h-screen flex-col"
   }, !preferences.onboardingComplete && /*#__PURE__*/React.createElement(OnboardingDialog, {
     onComplete: () => updatePreferences({
       onboardingComplete: true
     })
   }), /*#__PURE__*/React.createElement("header", {
-    className: "sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800"
+    className: "sticky top-0 z-30 pt-4 pb-2"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "mx-auto max-w-5xl px-4 py-3 flex items-center gap-3"
+    className: "mx-auto max-w-5xl px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-4 rounded-3xl border border-white/60 bg-white/75 px-5 py-4 shadow-lg shadow-emerald-500/20 backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
   }, /*#__PURE__*/React.createElement("img", {
     src: BRUSHSTROKE_CROSS,
     alt: "Mindfulness and Prayer Tracker logo",
-    className: "h-10 w-10 shrink-0",
-    width: "40",
-    height: "40",
+    className: "h-12 w-12 shrink-0 rounded-2xl border border-white/50 bg-white/70 p-2 shadow-md shadow-emerald-500/10 dark:border-white/10 dark:bg-white/10",
+    width: "48",
+    height: "48",
     loading: "lazy"
-  }), /*#__PURE__*/React.createElement("h1", {
-    className: "text-xl sm:text-2xl font-semibold tracking-tight"
-  }, "Mindfulness and Prayer Tracker"), /*#__PURE__*/React.createElement("span", {
-    className: "ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100"
+  }, "Mindfulness and Prayer Tracker"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-emerald-600/80 sm:text-sm dark:text-emerald-300/80"
+  }, "Gentle rhythms for prayer, stillness, and compassion.")), /*#__PURE__*/React.createElement("div", {
+    className: "ml-auto flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+    className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
   }, theme === "dark" ? "☀️ Light" : "🌙 Dark"), /*#__PURE__*/React.createElement(PinMenu, {
     hasPIN: hasPIN,
     updatePIN: updatePIN
-  })))), /*#__PURE__*/React.createElement("main", {
-    className: "mx-auto max-w-5xl px-4 py-6 grid gap-6"
+  }))))), /*#__PURE__*/React.createElement("main", {
+    className: "relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8"
   }, /*#__PURE__*/React.createElement(ReminderBanner, {
     reminder: activeReminder,
     onComplete: markReminderDone,
@@ -1166,7 +1265,7 @@ function App() {
     const meta = getMoodMeta(mood);
     return /*#__PURE__*/React.createElement("span", {
       key: mood,
-      className: "inline-flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-1"
+      className: "chip"
     }, meta?.emoji, " ", meta?.label || mood, " \xB7 ", count);
   })), latestMoodMeta ? /*#__PURE__*/React.createElement("p", {
     className: "text-[11px] text-zinc-500"
@@ -1178,8 +1277,17 @@ function App() {
     className: "flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300"
   }, tagSummary.slice(0, 10).map(([tag, count]) => /*#__PURE__*/React.createElement("span", {
     key: tag,
-    className: "rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5"
-  }, "#", tag, " \xB7 ", count)))) : null)), /*#__PURE__*/React.createElement(Card, {
+    className: "chip"
+  }, "#", tag, " \xB7 ", count)))) : null)), /*#__PURE__*/React.createElement(RecentEntriesCard, {
+    entries: recentEntries,
+    totalMatching: historyCount,
+    limit: historyLimit,
+    tagSummary: tagSummary,
+    selectedTag: historyTag,
+    onSelectTag: setHistoryTag,
+    onSelectDate: jumpToDate,
+    customMetricDefinitions: preferences.customMetrics
+  }), /*#__PURE__*/React.createElement(Card, {
     title: "Backup / Restore"
   }, /*#__PURE__*/React.createElement(BackupControls, {
     data: data,
@@ -1228,7 +1336,169 @@ function App() {
     data: data
   }), /*#__PURE__*/React.createElement("footer", {
     className: "pt-2 pb-8 text-center text-xs text-zinc-500 dark:text-zinc-400"
-  }, "Built for Mark \u2014 \u201Csee clearly, return gently, offer everything to Christ.\u201D")));
+  }, "Built for Mark \u2014 \u201Csee clearly, return gently, offer everything to Christ.\u201D"))));
+}
+function RecentEntriesCard({
+  entries,
+  totalMatching,
+  limit,
+  tagSummary,
+  selectedTag,
+  onSelectTag,
+  onSelectDate,
+  customMetricDefinitions
+}) {
+  const tagOptions = useMemo(() => tagSummary.map(([tag, count]) => ({
+    tag,
+    count
+  })), [tagSummary]);
+  const customMetricMap = useMemo(() => {
+    const map = new Map();
+    (customMetricDefinitions || []).forEach(metric => {
+      if (metric && metric.id) {
+        map.set(metric.id, metric);
+      }
+    });
+    return map;
+  }, [customMetricDefinitions]);
+  const hasFilter = Boolean(selectedTag);
+  const hasEntries = totalMatching > 0;
+  const showingCount = entries.length;
+  const finiteLimit = Number.isFinite(limit) && limit > 0 ? limit : Infinity;
+  const entryWord = showingCount === 1 ? "entry" : "entries";
+  const filterLabel = hasFilter ? `#${selectedTag} ` : "";
+  let summaryText = hasFilter ? `No ${filterLabel}entries yet` : "No entries yet";
+  if (hasEntries) {
+    if (finiteLimit !== Infinity && totalMatching > finiteLimit) {
+      summaryText = `Latest ${showingCount} ${filterLabel}${entryWord} of ${totalMatching}`;
+    } else {
+      summaryText = `${showingCount} ${filterLabel}${entryWord}`;
+    }
+  }
+  return /*#__PURE__*/React.createElement(Card, {
+    title: "Recent reflections"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Filter by tag"), /*#__PURE__*/React.createElement("select", {
+    value: selectedTag,
+    onChange: e => onSelectTag(e.target.value),
+    disabled: !tagOptions.length,
+    className: "rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-xs dark:border-zinc-800",
+    "aria-label": "Filter history by tag"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "All tags"), tagOptions.map(({
+    tag,
+    count
+  }) => /*#__PURE__*/React.createElement("option", {
+    key: tag,
+    value: tag
+  }, "#", tag, " \xB7 ", count)))), hasFilter ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn text-xs px-3 py-1",
+    onClick: () => onSelectTag("")
+  }, "Clear filter") : null, /*#__PURE__*/React.createElement("span", {
+    className: "ml-auto text-[11px] text-zinc-500 dark:text-zinc-400"
+  }, summaryText)), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-3"
+  }, hasEntries ? entries.map(entry => /*#__PURE__*/React.createElement(RecentEntryRow, {
+    key: entry.date,
+    day: entry,
+    onSelectDate: onSelectDate,
+    customMetricMap: customMetricMap
+  })) : /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500 dark:text-zinc-400"
+  }, hasFilter ? "Log a reflection with this tag to see it here." : "Once you log prayers or notes, a quick history appears for gentle review.")));
+}
+function RecentEntryRow({
+  day,
+  onSelectDate,
+  customMetricMap
+}) {
+  const date = new Date(day.date);
+  const formattedDate = Number.isNaN(date.getTime()) ? day.date : date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  });
+  const dailyFlags = [Boolean(day.morning?.consecration), Boolean(day.midday?.stillness), Boolean(day.midday?.bodyBlessing), Boolean(day.evening?.examen), Boolean(day.evening?.nightSilence)];
+  const dailyCompleted = dailyFlags.filter(Boolean).length;
+  const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).length;
+  const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).map(key => key.charAt(0).toUpperCase() + key.slice(1));
+  const moodMeta = getMoodMeta(day.mood);
+  const moodLabel = moodMeta ? `${moodMeta.emoji} ${moodMeta.label}` : day.mood || "";
+  const highlightParts = [];
+  if ((day.morning?.breathMinutes || 0) > 0) highlightParts.push(`Breath ${day.morning.breathMinutes} min`);
+  if ((day.morning?.jesusPrayerCount || 0) > 0) highlightParts.push(`Jesus Prayer ${day.morning.jesusPrayerCount}`);
+  if ((day.evening?.rosaryDecades || 0) > 0) highlightParts.push(`Rosary ${day.evening.rosaryDecades} decade${day.evening.rosaryDecades === 1 ? "" : "s"}`);
+  if ((day.temptations?.urgesNoted || 0) > 0) highlightParts.push(`Urges noted ${day.temptations.urgesNoted}`);
+  if ((day.temptations?.victories || 0) > 0) highlightParts.push(`Victories ${day.temptations.victories}`);
+  if ((day.temptations?.lapses || 0) > 0) highlightParts.push(`Lapses ${day.temptations.lapses}`);
+  const practiceBadges = [];
+  if (day.morning?.consecration) practiceBadges.push("🌅 Consecration");
+  if (day.midday?.stillness) practiceBadges.push("🕰️ Stillness pause");
+  if (day.midday?.bodyBlessing) practiceBadges.push("🤲 Body blessing");
+  if (day.evening?.examen) practiceBadges.push("🌙 Evening examen");
+  if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
+  const customMetricChips = [];
+  if (customMetricMap && customMetricMap.size) {
+    Object.entries(day.customMetrics || {}).forEach(([id, raw]) => {
+      const numeric = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(numeric) || numeric === 0) return;
+      const def = customMetricMap.get(id);
+      const name = def?.name || "Custom";
+      const unit = def?.unit ? ` ${def.unit}` : "";
+      customMetricChips.push({
+        id,
+        label: `${name}: ${formatMetricValue(numeric)}${unit}`
+      });
+    });
+  }
+  const tags = Array.isArray(day.contextTags) ? day.contextTags.map(tag => String(tag || "").trim()).filter(Boolean) : [];
+  const scripturePreview = truncateText(day.scripture, 100);
+  const notesPreview = truncateText(day.notes, 140);
+  return /*#__PURE__*/React.createElement("article", {
+    className: "rounded-2xl border border-white/60 bg-white/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-baseline gap-2 text-xs text-zinc-500 dark:text-zinc-400"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-sm font-semibold text-zinc-800 dark:text-zinc-100"
+  }, formattedDate), /*#__PURE__*/React.createElement("span", null, "Daily ", dailyCompleted, "/5"), /*#__PURE__*/React.createElement("span", null, "Weekly ", weeklyCompleted, "/", WEEKLY_ANCHOR_KEYS.length)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn ml-auto text-xs px-3 py-1",
+    onClick: () => onSelectDate(day.date)
+  }, "Review day")), moodLabel ? /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-zinc-500 dark:text-zinc-400"
+  }, "Mood: ", /*#__PURE__*/React.createElement("span", {
+    className: "font-medium text-zinc-700 dark:text-zinc-200"
+  }, moodLabel)) : null, highlightParts.length ? /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-zinc-500 dark:text-zinc-400"
+  }, highlightParts.join(" · ")) : null, practiceBadges.length ? /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, practiceBadges.map(badge => /*#__PURE__*/React.createElement("span", {
+    key: badge,
+    className: "chip text-[11px]"
+  }, badge))) : null, weeklyCompletedNames.length ? /*#__PURE__*/React.createElement("div", {
+    className: "text-xs text-zinc-500 dark:text-zinc-400"
+  }, "Weekly anchors: ", weeklyCompletedNames.join(", ")) : null, customMetricChips.length ? /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, customMetricChips.map(chip => /*#__PURE__*/React.createElement("span", {
+    key: chip.id,
+    className: "chip text-[11px]"
+  }, chip.label))) : null, tags.length ? /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, tags.slice(0, 5).map(tag => /*#__PURE__*/React.createElement("span", {
+    key: tag,
+    className: "chip text-[11px]"
+  }, "#", tag))) : null, scripturePreview ? /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500 dark:text-zinc-400"
+  }, "Scripture: ", scripturePreview) : null, notesPreview ? /*#__PURE__*/React.createElement("p", {
+    className: "text-xs italic text-zinc-500 dark:text-zinc-400"
+  }, "Journal: ", notesPreview) : null);
 }
 function MetricTrendsCard({
   selectedMetric,
@@ -1386,11 +1656,11 @@ function Card({
   children
 }) {
   return /*#__PURE__*/React.createElement("section", {
-    className: "rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 shadow-sm p-4"
+    className: "glass-card"
   }, /*#__PURE__*/React.createElement("h2", {
-    className: "font-semibold tracking-tight mb-3 text-zinc-800 dark:text-zinc-100"
+    className: "card-title"
   }, title), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-3 text-sm"
+    className: "grid gap-3 text-sm text-zinc-600 dark:text-zinc-300"
   }, children));
 }
 function ToggleRow({
@@ -1661,11 +1931,11 @@ function TagSelector({
     className: "flex flex-wrap gap-2"
   }, tags.map(tag => /*#__PURE__*/React.createElement("span", {
     key: tag,
-    className: "inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300"
+    className: "chip"
   }, "#", tag, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => removeTag(tag),
-    className: "text-[11px]"
+    className: "chip-remove"
   }, "\xD7")))), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-2"
   }, /*#__PURE__*/React.createElement("input", {
@@ -1678,7 +1948,7 @@ function TagSelector({
       }
     },
     placeholder: "Add tag",
-    className: "flex-1 min-w-[8rem] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+    className: "flex-1 min-w-[8rem] rounded-xl border border-white/60 bg-white/80 px-3 py-2 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     type: "button",
@@ -1689,7 +1959,7 @@ function TagSelector({
     key: suggestion,
     type: "button",
     onClick: () => addTag(suggestion),
-    className: "rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 text-[11px] text-zinc-600 hover:border-emerald-400 hover:text-emerald-600"
+    className: "chip hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200"
   }, "#", suggestion))));
 }
 function GuidedPrompt({
@@ -1787,15 +2057,15 @@ function ReminderBanner({
     minute: "2-digit"
   });
   return /*#__PURE__*/React.createElement("div", {
-    className: "sticky top-16 z-30 mx-auto max-w-4xl px-4"
+    className: "sticky top-32 z-30 mx-auto max-w-4xl px-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "mt-4 rounded-2xl border border-emerald-400/60 bg-emerald-500/10 px-4 py-3 shadow-sm backdrop-blur"
+    className: "glass-card reminder-card mt-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap items-center gap-3 text-sm text-emerald-800 dark:text-emerald-200"
+    className: "flex flex-wrap items-center gap-3 text-sm"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
   }, "Reminder: ", reminder.label), /*#__PURE__*/React.createElement("span", {
-    className: "text-xs"
+    className: "text-xs opacity-80"
   }, "Scheduled for ", timeLabel), /*#__PURE__*/React.createElement("div", {
     className: "ml-auto flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
@@ -1812,17 +2082,19 @@ function PracticeSpotlight({
 }) {
   if (!spotlight) return null;
   return /*#__PURE__*/React.createElement("div", {
-    className: "rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-500/10 p-4"
+    className: "glass-card spotlight-card"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-start gap-3"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
-    className: "text-sm font-semibold text-emerald-700 dark:text-emerald-200"
+    className: "flex flex-wrap items-start gap-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-semibold uppercase tracking-wide text-emerald-700/80 dark:text-emerald-200/80"
   }, "Practice spotlight"), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm text-emerald-800 dark:text-emerald-100 mt-1 font-medium"
+    className: "mt-1 text-base font-semibold text-emerald-900 dark:text-emerald-100"
   }, spotlight.title), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-emerald-800/90 dark:text-emerald-200/90 mt-1 leading-relaxed"
+    className: "mt-2 text-sm leading-relaxed text-emerald-800/90 dark:text-emerald-100/80"
   }, spotlight.body)), /*#__PURE__*/React.createElement("button", {
-    className: "btn ml-auto",
+    className: "btn",
     onClick: onNext
   }, "Another")));
 }
@@ -1945,7 +2217,7 @@ function TopNav({
 }) {
   const dots = useMemo(() => monthDots(date, data), [date, data]);
   return /*#__PURE__*/React.createElement("div", {
-    className: "rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-4 grid gap-3"
+    className: "glass-card grid gap-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
@@ -1957,7 +2229,7 @@ function TopNav({
     onChange: e => {
       setDate(e.target.value);
     },
-    className: "rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+    className: "rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => setDate(todayISO())
@@ -1965,7 +2237,7 @@ function TopNav({
     className: "btn",
     onClick: () => setDate(prevDay(date, 1))
   }, "Next \u2192"), /*#__PURE__*/React.createElement("span", {
-    className: "ml-auto text-sm text-zinc-500"
+    className: "ml-auto text-xs text-zinc-500 dark:text-zinc-400"
   }, "Tip: Use \u2190 \u2192 keys")), /*#__PURE__*/React.createElement(MiniMonth, {
     dots: dots,
     onPick: setDate,
@@ -2006,7 +2278,7 @@ function MiniMonth({
       key: date,
       type: "button",
       onClick: () => onPick(date),
-      className: "aspect-square rounded-md text-[11px] tabular-nums flex items-center justify-center border transition " + (isCurrent ? "border-emerald-500 " : "border-transparent ") + (filled ? "bg-emerald-500/20 dark:bg-emerald-500/25" : "bg-zinc-200/30 dark:bg-zinc-800/50"),
+      className: "aspect-square rounded-lg text-[11px] tabular-nums flex items-center justify-center border transition-colors backdrop-blur " + (isCurrent ? "border-emerald-500 bg-emerald-500/30 text-emerald-900 shadow-sm dark:text-emerald-100" : "border-white/50 bg-white/70 text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300") + (filled ? " ring-1 ring-emerald-500/40" : ""),
       "aria-pressed": isCurrent
     }, Number(strDate.slice(-2)));
   })), /*#__PURE__*/React.createElement("div", {
@@ -2185,17 +2457,17 @@ function PinMenu({
   return /*#__PURE__*/React.createElement("div", {
     className: "relative"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+    className: "btn",
     onClick: () => setOpen(o => !o)
   }, hasPIN ? "🔒 PIN" : "🔓 Set PIN"), open && /*#__PURE__*/React.createElement("div", {
-    className: "absolute right-0 mt-2 w-64 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-lg"
+    className: "absolute right-0 z-40 mt-3 w-72 rounded-2xl border border-white/60 bg-white/80 p-4 text-left shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm mb-2"
+    className: "mb-3 text-sm text-zinc-600 dark:text-zinc-300"
   }, "Optional 4-digit app lock. When enabled, your journal + scripture entries are stored encrypted on this device. If supported, we\u2019ll also save the PIN to your browser\u2019s credential manager for biometric unlocks."), /*#__PURE__*/React.createElement("input", {
     value: val,
     onChange: e => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)),
     placeholder: "1234",
-    className: "w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 mb-2"
+    className: "mb-3 w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-lg tracking-[0.35em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
@@ -2258,12 +2530,18 @@ function LockScreen({
     }
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "min-h-screen grid place-items-center bg-zinc-50 dark:bg-zinc-950"
+    className: "app-shell"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-6 w-full max-w-sm text-center"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-lg font-semibold mb-2"
-  }, "Enter PIN"), /*#__PURE__*/React.createElement("input", {
+    className: "relative z-10 grid min-h-screen place-items-center px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "glass-card w-full max-w-sm text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+  }, "\uD83D\uDD12"), /*#__PURE__*/React.createElement("h2", {
+    className: "mb-2 text-lg font-semibold"
+  }, "Enter PIN"), /*#__PURE__*/React.createElement("p", {
+    className: "mb-4 text-xs text-zinc-500 dark:text-zinc-400"
+  }, "Your journal is encrypted when a PIN is set. Unlock to continue."), /*#__PURE__*/React.createElement("input", {
     value: val,
     onChange: e => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)),
     onKeyDown: e => {
@@ -2272,19 +2550,21 @@ function LockScreen({
         submit();
       }
     },
-    className: "w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-center text-2xl tracking-widest"
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn w-full mt-3",
+    className: "w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-2xl tracking-[0.5em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 grid gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn w-full justify-center",
     onClick: submit,
     disabled: working
   }, working ? "Checking…" : "Unlock"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    className: "btn w-full mt-2",
+    className: "btn w-full justify-center",
     onClick: useDeviceCredential,
     disabled: working
-  }, "Use saved device credential"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-zinc-500 mt-2"
-  }, "Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser\u2019s password manager and may prompt for biometric confirmation.")));
+  }, "Use saved device credential")), /*#__PURE__*/React.createElement("p", {
+    className: "mt-3 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400"
+  }, "Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser\u2019s password manager and may prompt for biometric confirmation."))));
 }
 function buildMetricSeries(data, metricKey, metricOptions = BASE_METRIC_OPTIONS) {
   const metric = metricOptions.find(option => option.value === metricKey);
