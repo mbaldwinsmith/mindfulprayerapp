@@ -842,35 +842,41 @@ function App() {
   if (!unlocked) return <LockScreen tryUnlock={tryUnlock} />;
 
   return (
-    <div className="min-h-screen">
-      {!preferences.onboardingComplete && (
-        <OnboardingDialog onComplete={() => updatePreferences({ onboardingComplete: true })} />
-      )}
-      <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3">
-          <img
-            src={BRUSHSTROKE_CROSS}
-            alt="Mindfulness and Prayer Tracker logo"
-            className="h-10 w-10 shrink-0"
-            width="40"
-            height="40"
-            loading="lazy"
-          />
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Mindfulness and Prayer Tracker</h1>
-          <span className="ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-            <button
-              className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              title="Toggle theme"
-            >
-              {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
-            </button>
-            <PinMenu hasPIN={hasPIN} updatePIN={updatePIN} />
-          </span>
-        </div>
-      </header>
+    <div className="app-shell">
+      <div className="relative z-10 flex min-h-screen flex-col">
+        {!preferences.onboardingComplete && (
+          <OnboardingDialog onComplete={() => updatePreferences({ onboardingComplete: true })} />
+        )}
+        <header className="sticky top-0 z-30 pt-4 pb-2">
+          <div className="mx-auto max-w-5xl px-4">
+            <div className="flex items-center gap-4 rounded-3xl border border-white/60 bg-white/75 px-5 py-4 shadow-lg shadow-emerald-500/20 backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+              <img
+                src={BRUSHSTROKE_CROSS}
+                alt="Mindfulness and Prayer Tracker logo"
+                className="h-12 w-12 shrink-0 rounded-2xl border border-white/50 bg-white/70 p-2 shadow-md shadow-emerald-500/10 dark:border-white/10 dark:bg-white/10"
+                width="48"
+                height="48"
+                loading="lazy"
+              />
+              <div className="flex flex-col">
+                <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
+                  Mindfulness and Prayer Tracker
+                </h1>
+                <p className="text-xs text-emerald-600/80 sm:text-sm dark:text-emerald-300/80">
+                  Gentle rhythms for prayer, stillness, and compassion.
+                </p>
+              </div>
+              <div className="ml-auto flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
+                  {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+                </button>
+                <PinMenu hasPIN={hasPIN} updatePIN={updatePIN} />
+              </div>
+            </div>
+          </div>
+        </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 grid gap-6">
+        <main className="relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8">
         <ReminderBanner
           reminder={activeReminder}
           onComplete={markReminderDone}
@@ -1158,10 +1164,7 @@ function App() {
                     {moodSummary.counts.map(([mood, count]) => {
                       const meta = getMoodMeta(mood);
                       return (
-                        <span
-                          key={mood}
-                          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-1"
-                        >
+                        <span key={mood} className="chip">
                           {meta?.emoji} {meta?.label || mood} · {count}
                         </span>
                       );
@@ -1182,7 +1185,7 @@ function App() {
                   </h3>
                   <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                     {tagSummary.slice(0, 10).map(([tag, count]) => (
-                      <span key={tag} className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5">
+                      <span key={tag} className="chip">
                         #{tag} · {count}
                       </span>
                     ))}
@@ -1245,6 +1248,7 @@ function App() {
         </footer>
       </main>
     </div>
+  </div>
   );
 }
 
@@ -1420,9 +1424,9 @@ function formatMetricValue(value) {
 
 function Card({ title, children }) {
   return (
-    <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 shadow-sm p-4">
-      <h2 className="font-semibold tracking-tight mb-3 text-zinc-800 dark:text-zinc-100">{title}</h2>
-      <div className="grid gap-3 text-sm">{children}</div>
+    <section className="glass-card">
+      <h2 className="card-title">{title}</h2>
+      <div className="grid gap-3 text-sm text-zinc-600 dark:text-zinc-300">{children}</div>
     </section>
   );
 }
@@ -1693,12 +1697,11 @@ function TagSelector({ tags, onChange }) {
       <div className="text-sm font-medium">Tag the day</div>
       <div className="flex flex-wrap gap-2">
         {tags.map((tag) => (
-          <span
-            key={tag}
-            className="inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300"
-          >
+          <span key={tag} className="chip">
             #{tag}
-            <button type="button" onClick={() => removeTag(tag)} className="text-[11px]">×</button>
+            <button type="button" onClick={() => removeTag(tag)} className="chip-remove">
+              ×
+            </button>
           </span>
         ))}
       </div>
@@ -1713,7 +1716,7 @@ function TagSelector({ tags, onChange }) {
             }
           }}
           placeholder="Add tag"
-          className="flex-1 min-w-[8rem] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+          className="flex-1 min-w-[8rem] rounded-xl border border-white/60 bg-white/80 px-3 py-2 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
         />
         <button className="btn" type="button" onClick={() => addTag(input)}>
           Add
@@ -1725,7 +1728,7 @@ function TagSelector({ tags, onChange }) {
             key={suggestion}
             type="button"
             onClick={() => addTag(suggestion)}
-            className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 text-[11px] text-zinc-600 hover:border-emerald-400 hover:text-emerald-600"
+            className="chip hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200"
           >
             #{suggestion}
           </button>
@@ -1819,11 +1822,11 @@ function ReminderBanner({ reminder, onComplete, onSnooze }) {
   if (!reminder) return null;
   const timeLabel = reminder.time || reminder.scheduled?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
-    <div className="sticky top-16 z-30 mx-auto max-w-4xl px-4">
-      <div className="mt-4 rounded-2xl border border-emerald-400/60 bg-emerald-500/10 px-4 py-3 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-emerald-800 dark:text-emerald-200">
+    <div className="sticky top-32 z-30 mx-auto max-w-4xl px-4">
+      <div className="glass-card reminder-card mt-4">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="font-semibold">Reminder: {reminder.label}</span>
-          <span className="text-xs">Scheduled for {timeLabel}</span>
+          <span className="text-xs opacity-80">Scheduled for {timeLabel}</span>
           <div className="ml-auto flex gap-2">
             <button className="btn" onClick={() => onComplete(reminder.id)}>
               Logged
@@ -1841,14 +1844,16 @@ function ReminderBanner({ reminder, onComplete, onSnooze }) {
 function PracticeSpotlight({ spotlight, onNext }) {
   if (!spotlight) return null;
   return (
-    <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-500/10 p-4">
-      <div className="flex items-start gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">Practice spotlight</h3>
-          <div className="text-sm text-emerald-800 dark:text-emerald-100 mt-1 font-medium">{spotlight.title}</div>
-          <p className="text-xs text-emerald-800/90 dark:text-emerald-200/90 mt-1 leading-relaxed">{spotlight.body}</p>
+    <div className="glass-card spotlight-card">
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700/80 dark:text-emerald-200/80">
+            Practice spotlight
+          </h3>
+          <div className="mt-1 text-base font-semibold text-emerald-900 dark:text-emerald-100">{spotlight.title}</div>
+          <p className="mt-2 text-sm leading-relaxed text-emerald-800/90 dark:text-emerald-100/80">{spotlight.body}</p>
         </div>
-        <button className="btn ml-auto" onClick={onNext}>
+        <button className="btn" onClick={onNext}>
           Another
         </button>
       </div>
@@ -1962,7 +1967,7 @@ function WeeklyAnchors({ date, setData, data }) {
 function TopNav({ date, setDate, data }) {
   const dots = useMemo(() => monthDots(date, data), [date, data]);
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-4 grid gap-3">
+    <div className="glass-card grid gap-4">
       <div className="flex items-center gap-2">
         <button className="btn" onClick={() => setDate(prevDay(date, -1))}>
           ← Prev
@@ -1973,7 +1978,7 @@ function TopNav({ date, setDate, data }) {
           onChange={(e) => {
             setDate(e.target.value);
           }}
-          className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+          className="rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
         />
         <button className="btn" onClick={() => setDate(todayISO())}>
           Today
@@ -1981,7 +1986,7 @@ function TopNav({ date, setDate, data }) {
         <button className="btn" onClick={() => setDate(prevDay(date, 1))}>
           Next →
         </button>
-        <span className="ml-auto text-sm text-zinc-500">Tip: Use ← → keys</span>
+        <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400">Tip: Use ← → keys</span>
       </div>
       <MiniMonth dots={dots} onPick={setDate} current={date} />
     </div>
@@ -2012,9 +2017,11 @@ function MiniMonth({ dots, onPick, current }) {
               type="button"
               onClick={() => onPick(date)}
               className={
-                "aspect-square rounded-md text-[11px] tabular-nums flex items-center justify-center border transition " +
-                (isCurrent ? "border-emerald-500 " : "border-transparent ") +
-                (filled ? "bg-emerald-500/20 dark:bg-emerald-500/25" : "bg-zinc-200/30 dark:bg-zinc-800/50")
+                "aspect-square rounded-lg text-[11px] tabular-nums flex items-center justify-center border transition-colors backdrop-blur " +
+                (isCurrent
+                  ? "border-emerald-500 bg-emerald-500/30 text-emerald-900 shadow-sm dark:text-emerald-100"
+                  : "border-white/50 bg-white/70 text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300") +
+                (filled ? " ring-1 ring-emerald-500/40" : "")
               }
               aria-pressed={isCurrent}
             >
@@ -2194,15 +2201,12 @@ function PinMenu({ hasPIN, updatePIN }) {
   const [working, setWorking] = useState(false);
   return (
     <div className="relative">
-      <button
-        className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        onClick={() => setOpen((o) => !o)}
-      >
+      <button className="btn" onClick={() => setOpen((o) => !o)}>
         {hasPIN ? "🔒 PIN" : "🔓 Set PIN"}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-64 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-lg">
-          <div className="text-sm mb-2">
+        <div className="absolute right-0 z-40 mt-3 w-72 rounded-2xl border border-white/60 bg-white/80 p-4 text-left shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+          <div className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
             Optional 4-digit app lock. When enabled, your journal + scripture entries are stored encrypted on this device.
             If supported, we’ll also save the PIN to your browser’s credential manager for biometric unlocks.
           </div>
@@ -2210,7 +2214,7 @@ function PinMenu({ hasPIN, updatePIN }) {
             value={val}
             onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
             placeholder="1234"
-            className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 mb-2"
+            className="mb-3 w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-lg tracking-[0.35em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
           />
           <div className="flex gap-2">
             <button
@@ -2282,35 +2286,40 @@ function LockScreen({ tryUnlock }) {
   };
 
   return (
-    <div className="min-h-screen grid place-items-center bg-zinc-50 dark:bg-zinc-950">
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-6 w-full max-w-sm text-center">
-        <h2 className="text-lg font-semibold mb-2">Enter PIN</h2>
-        <input
-          value={val}
-          onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-center text-2xl tracking-widest"
-        />
-        <button className="btn w-full mt-3" onClick={submit} disabled={working}>
-          {working ? "Checking…" : "Unlock"}
-        </button>
-        <button
-          type="button"
-          className="btn w-full mt-2"
-          onClick={useDeviceCredential}
-          disabled={working}
-        >
-          Use saved device credential
-        </button>
-        <p className="text-xs text-zinc-500 mt-2">
-          Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser’s password manager
-          and may prompt for biometric confirmation.
-        </p>
+    <div className="app-shell">
+      <div className="relative z-10 grid min-h-screen place-items-center px-4">
+        <div className="glass-card w-full max-w-sm text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+            🔒
+          </div>
+          <h2 className="mb-2 text-lg font-semibold">Enter PIN</h2>
+          <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+            Your journal is encrypted when a PIN is set. Unlock to continue.
+          </p>
+          <input
+            value={val}
+            onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            className="w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-2xl tracking-[0.5em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+          />
+          <div className="mt-4 grid gap-2">
+            <button className="btn w-full justify-center" onClick={submit} disabled={working}>
+              {working ? "Checking…" : "Unlock"}
+            </button>
+            <button type="button" className="btn w-full justify-center" onClick={useDeviceCredential} disabled={working}>
+              Use saved device credential
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser’s password manager
+            and may prompt for biometric confirmation.
+          </p>
+        </div>
       </div>
     </div>
   );
