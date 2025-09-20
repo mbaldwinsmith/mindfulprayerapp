@@ -75,7 +75,6 @@ const blankDay = (date) => ({
     angelus: false,
     magnificat: false,
     rosaryDecades: 0,
-    nightSilence: false,
     actOfContrition: false,
     gratitudePrayer: false,
   },
@@ -1198,14 +1197,6 @@ const BASE_METRIC_OPTIONS = [
     weeklyUnit: "days",
     aggregate: SUM_AGGREGATE,
   },
-  {
-    value: "nightSilence",
-    label: "Silence before sleep",
-    accessor: (day) => (day.evening.nightSilence ? 1 : 0),
-    unit: "",
-    weeklyUnit: "days",
-    aggregate: SUM_AGGREGATE,
-  },
 ];
 
 const METRIC_VIEW_OPTIONS = [
@@ -1251,7 +1242,6 @@ const normalizeDay = (input = {}) => ({
     angelus: input.evening?.angelus ?? false,
     magnificat: input.evening?.magnificat ?? false,
     rosaryDecades: input.evening?.rosaryDecades ?? 0,
-    nightSilence: input.evening?.nightSilence ?? false,
     actOfContrition: input.evening?.actOfContrition ?? false,
     gratitudePrayer: input.evening?.gratitudePrayer ?? false,
   },
@@ -1286,7 +1276,7 @@ function dayHasActivity(day) {
   if ((day.morning?.breathMinutes || 0) > 0) return true;
   if ((day.morning?.jesusPrayerCount || 0) > 0) return true;
   if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
-  if (day.evening?.examen || day.evening?.nightSilence) return true;
+  if (day.evening?.examen) return true;
   if (day.evening?.magnificat) return true;
   if (day.evening?.actOfContrition) return true;
   if (day.evening?.gratitudePrayer) return true;
@@ -2194,11 +2184,6 @@ function App() {
                 />
                 <RosaryMysteryNote mystery={rosaryMystery} />
                 <ToggleRow
-                  label="Silence Before Sleep"
-                  checked={d.evening.nightSilence}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, nightSilence: v } }))}
-                />
-                <ToggleRow
                   label={
                     <a
                       href={ACT_OF_CONTRITION_URL}
@@ -2437,10 +2422,6 @@ function App() {
                       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                         <span>Recite the Magnificat</span>
                         <span className="tabular-nums font-semibold">{totals.eveningMagnificat}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Silence before sleep</span>
-                        <span className="tabular-nums font-semibold">{totals.eveningNightSilence}</span>
                       </div>
                       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                         <span>Act of Contrition</span>
@@ -2721,7 +2702,6 @@ function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
     Boolean(day.evening?.examen),
     Boolean(day.evening?.angelus),
     Boolean(day.evening?.magnificat),
-    Boolean(day.evening?.nightSilence),
     Boolean(day.evening?.actOfContrition),
     Boolean(day.evening?.gratitudePrayer),
   ];
@@ -2758,7 +2738,6 @@ function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
   if (day.evening?.examen) practiceBadges.push("🌙 Evening examen");
   if (day.evening?.angelus) practiceBadges.push("🔔 Evening Angelus");
   if (day.evening?.magnificat) practiceBadges.push("🎶 Magnificat");
-  if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
   if (day.evening?.actOfContrition) practiceBadges.push("🕯️ Act of Contrition");
   if (day.evening?.gratitudePrayer) practiceBadges.push("✨ Gratitude prayer");
 
@@ -4233,7 +4212,6 @@ function anyPracticeDone(day) {
     day.evening.rosaryDecades > 0 ||
     day.evening.angelus ||
     day.evening.magnificat ||
-    day.evening.nightSilence ||
     day.evening.actOfContrition ||
     day.evening.gratitudePrayer
   );
@@ -4308,7 +4286,6 @@ function calcTotals(data) {
       if (evening.examen) acc.eveningExamen += 1;
       if (evening.angelus) acc.eveningAngelus += 1;
       if (evening.magnificat) acc.eveningMagnificat += 1;
-      if (evening.nightSilence) acc.eveningNightSilence += 1;
       if (evening.actOfContrition) acc.eveningActOfContrition += 1;
       if (evening.gratitudePrayer) acc.eveningGratitudePrayer += 1;
 
@@ -4339,7 +4316,6 @@ function calcTotals(data) {
       eveningExamen: 0,
       eveningAngelus: 0,
       eveningMagnificat: 0,
-      eveningNightSilence: 0,
       eveningActOfContrition: 0,
       eveningGratitudePrayer: 0,
       weeklyMass: 0,
@@ -4502,7 +4478,6 @@ function toCSV(data, customMetrics = []) {
     "EveningAngelus",
     "EveningMagnificat",
     "RosaryDecades",
-    "NightSilence",
     "ActOfContrition",
     "GratitudePrayer",
     "UrgesNoted",
@@ -4540,7 +4515,6 @@ function toCSV(data, customMetrics = []) {
         day.evening.angelus ? 1 : 0,
         day.evening.magnificat ? 1 : 0,
         day.evening.rosaryDecades,
-        day.evening.nightSilence ? 1 : 0,
         day.evening.actOfContrition ? 1 : 0,
         day.evening.gratitudePrayer ? 1 : 0,
         day.temptations.urgesNoted,
