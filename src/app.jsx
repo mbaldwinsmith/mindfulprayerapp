@@ -355,18 +355,90 @@ function App() {
           </Card>
 
           <Card title="Stats">
-            <div className="text-sm grid gap-2">
-              <div>
-                Current streak: <b>{streak} day{streak === 1 ? "" : "s"}</b>
-                <span className="ml-1 text-zinc-500 dark:text-zinc-400">
-                  Personal best: <b>{longestStreak} day{longestStreak === 1 ? "" : "s"}</b>
-                </span>
+            <div className="text-sm grid gap-4">
+              <div className="grid gap-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Current streak</span>
+                  <span className="tabular-nums font-semibold">
+                    {streak} day{streak === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Breath meditation (min)</span>
+                  <span className="tabular-nums font-semibold">{totals.breathMinutes}</span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Jesus Prayer (count)</span>
+                  <span className="tabular-nums font-semibold">{totals.jesusPrayerCount}</span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Rosary decades</span>
+                  <span className="tabular-nums font-semibold">{totals.rosaryDecades}</span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Urges noted</span>
+                  <span className="tabular-nums font-semibold">{totals.urgesNoted}</span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Victories over urges</span>
+                  <span className="tabular-nums font-semibold">{totals.victories}</span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Lapses</span>
+                  <span className="tabular-nums font-semibold">{totals.lapses}</span>
+                </div>
               </div>
-              <div>Total breath meditation: <b>{totals.breathMinutes}</b> min</div>
-              <div>Total Jesus Prayer: <b>{totals.jesusPrayerCount}</b></div>
-              <div>Total rosary decades: <b>{totals.rosaryDecades}</b></div>
-              <div>
-                Victories over urges: <b>{totals.victories}</b> | Lapses: <b>{totals.lapses}</b>
+
+              <div className="grid gap-1">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Daily practices completed
+                </h3>
+                <div className="grid gap-1">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Morning consecration</span>
+                    <span className="tabular-nums font-semibold">{totals.morningConsecration}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Midday stillness pause</span>
+                    <span className="tabular-nums font-semibold">{totals.middayStillness}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Body blessing</span>
+                    <span className="tabular-nums font-semibold">{totals.middayBodyBlessing}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Evening examen</span>
+                    <span className="tabular-nums font-semibold">{totals.eveningExamen}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Silence before sleep</span>
+                    <span className="tabular-nums font-semibold">{totals.eveningNightSilence}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-1">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Weekly anchors completed
+                </h3>
+                <div className="grid gap-1">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Mass</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyMass}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Confession</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyConfession}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Fasting</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyFasting}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Accountability</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyAccountability}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -890,14 +962,49 @@ function calcLongestStreak(data) {
 function calcTotals(data) {
   return Object.values(data).reduce(
     (acc, d) => {
-      acc.breathMinutes += d.morning?.breathMinutes || 0;
-      acc.jesusPrayerCount += d.morning?.jesusPrayerCount || 0;
-      acc.rosaryDecades += d.evening?.rosaryDecades || 0;
-      acc.victories += d.temptations?.victories || 0;
-      acc.lapses += d.temptations?.lapses || 0;
+      const morning = d.morning ?? {};
+      const midday = d.midday ?? {};
+      const evening = d.evening ?? {};
+      const temptations = d.temptations ?? {};
+      const weekly = d.weekly ?? {};
+
+      acc.breathMinutes += morning.breathMinutes || 0;
+      acc.jesusPrayerCount += morning.jesusPrayerCount || 0;
+      acc.rosaryDecades += evening.rosaryDecades || 0;
+      acc.victories += temptations.victories || 0;
+      acc.lapses += temptations.lapses || 0;
+      acc.urgesNoted += temptations.urgesNoted || 0;
+
+      if (morning.consecration) acc.morningConsecration += 1;
+      if (midday.stillness) acc.middayStillness += 1;
+      if (midday.bodyBlessing) acc.middayBodyBlessing += 1;
+      if (evening.examen) acc.eveningExamen += 1;
+      if (evening.nightSilence) acc.eveningNightSilence += 1;
+
+      if (weekly.mass) acc.weeklyMass += 1;
+      if (weekly.confession) acc.weeklyConfession += 1;
+      if (weekly.fasting) acc.weeklyFasting += 1;
+      if (weekly.accountability) acc.weeklyAccountability += 1;
+
       return acc;
     },
-    { breathMinutes: 0, jesusPrayerCount: 0, rosaryDecades: 0, victories: 0, lapses: 0 },
+    {
+      breathMinutes: 0,
+      jesusPrayerCount: 0,
+      rosaryDecades: 0,
+      victories: 0,
+      lapses: 0,
+      urgesNoted: 0,
+      morningConsecration: 0,
+      middayStillness: 0,
+      middayBodyBlessing: 0,
+      eveningExamen: 0,
+      eveningNightSilence: 0,
+      weeklyMass: 0,
+      weeklyConfession: 0,
+      weeklyFasting: 0,
+      weeklyAccountability: 0,
+    },
   );
 }
 
