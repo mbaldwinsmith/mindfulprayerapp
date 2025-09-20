@@ -66,7 +66,15 @@ const blankDay = (date) => ({
   midday: { stillness: false, bodyBlessing: false },
   evening: { examen: false, rosaryDecades: 0, nightSilence: false },
   temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
-  weekly: { mass: false, confession: false, fasting: false, accountability: false },
+  weekly: {
+    mass: false,
+    confession: false,
+    fasting: false,
+    accountability: false,
+    sabbath: false,
+    service: false,
+    direction: false,
+  },
   mood: "",
   contextTags: [],
   customMetrics: {},
@@ -116,7 +124,22 @@ async function decryptJSON(key, payload) {
   return JSON.parse(text);
 }
 
-const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
+const WEEKLY_ANCHORS = [
+  { key: "mass", label: "Sunday Mass" },
+  { key: "confession", label: "Confession" },
+  { key: "fasting", label: "Fasting / abstinence" },
+  { key: "accountability", label: "Accountability check-in" },
+  { key: "sabbath", label: "Sabbath rest" },
+  { key: "service", label: "Service / mercy outreach" },
+  { key: "direction", label: "Spiritual direction check-in" },
+];
+
+const WEEKLY_ANCHOR_LABELS = WEEKLY_ANCHORS.reduce((acc, anchor) => {
+  acc[anchor.key] = anchor.label;
+  return acc;
+}, {});
+
+const WEEKLY_ANCHOR_KEYS = WEEKLY_ANCHORS.map((anchor) => anchor.key);
 
 const MOOD_OPTIONS = [
   { value: "joyful", label: "Joyful", emoji: "😊" },
@@ -368,6 +391,9 @@ const normalizeDay = (input = {}) => ({
     confession: input.weekly?.confession ?? false,
     fasting: input.weekly?.fasting ?? false,
     accountability: input.weekly?.accountability ?? false,
+    sabbath: input.weekly?.sabbath ?? false,
+    service: input.weekly?.service ?? false,
+    direction: input.weekly?.direction ?? false,
   },
   mood: input.mood ?? "",
   contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
@@ -1096,11 +1122,11 @@ function App() {
                   </span>
                 </div>
                 <div className="mt-2 grid gap-1">
-                  {WEEKLY_ANCHOR_KEYS.map((k) => {
-                    const complete = weekSummary.anchors[k];
+                  {WEEKLY_ANCHORS.map(({ key, label }) => {
+                    const complete = weekSummary.anchors[key];
                     return (
-                      <div key={k} className="flex items-center justify-between">
-                        <span className="capitalize">{k}</span>
+                      <div key={key} className="flex items-center justify-between">
+                        <span>{label}</span>
                         <span
                           className={
                             "text-xs font-medium " +
@@ -1452,7 +1478,7 @@ function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
   const dailyCompleted = dailyFlags.filter(Boolean).length;
   const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).length;
   const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).map(
-    (key) => key.charAt(0).toUpperCase() + key.slice(1),
+    (key) => WEEKLY_ANCHOR_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1),
   );
   const moodMeta = getMoodMeta(day.mood);
   const moodLabel = moodMeta ? `${moodMeta.emoji} ${moodMeta.label}` : day.mood || "";
@@ -2262,13 +2288,13 @@ function WeeklyAnchors({ date, setData, data }) {
 
   return (
     <div className="grid gap-2 text-sm">
-      {WEEKLY_ANCHOR_KEYS.map((k) => (
-        <label key={k} className="flex items-center justify-between">
-          <span className="capitalize">{k}</span>
+      {WEEKLY_ANCHORS.map(({ key, label }) => (
+        <label key={key} className="flex items-center justify-between gap-3">
+          <span className="text-sm text-zinc-700 dark:text-zinc-200">{label}</span>
           <input
             type="checkbox"
-            checked={all[k]}
-            onChange={(e) => toggle(k, e.target.checked)}
+            checked={all[key]}
+            onChange={(e) => toggle(key, e.target.checked)}
             className="h-5 w-5 accent-emerald-600"
           />
         </label>

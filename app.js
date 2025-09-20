@@ -79,7 +79,10 @@ const blankDay = date => ({
     mass: false,
     confession: false,
     fasting: false,
-    accountability: false
+    accountability: false,
+    sabbath: false,
+    service: false,
+    direction: false
   },
   mood: "",
   contextTags: [],
@@ -127,7 +130,33 @@ async function decryptJSON(key, payload) {
   const text = textDecoder.decode(decrypted);
   return JSON.parse(text);
 }
-const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
+const WEEKLY_ANCHORS = [{
+  key: "mass",
+  label: "Sunday Mass"
+}, {
+  key: "confession",
+  label: "Confession"
+}, {
+  key: "fasting",
+  label: "Fasting / abstinence"
+}, {
+  key: "accountability",
+  label: "Accountability check-in"
+}, {
+  key: "sabbath",
+  label: "Sabbath rest"
+}, {
+  key: "service",
+  label: "Service / mercy outreach"
+}, {
+  key: "direction",
+  label: "Spiritual direction check-in"
+}];
+const WEEKLY_ANCHOR_LABELS = WEEKLY_ANCHORS.reduce((acc, anchor) => {
+  acc[anchor.key] = anchor.label;
+  return acc;
+}, {});
+const WEEKLY_ANCHOR_KEYS = WEEKLY_ANCHORS.map(anchor => anchor.key);
 const MOOD_OPTIONS = [{
   value: "joyful",
   label: "Joyful",
@@ -339,7 +368,10 @@ const normalizeDay = (input = {}) => ({
     mass: input.weekly?.mass ?? false,
     confession: input.weekly?.confession ?? false,
     fasting: input.weekly?.fasting ?? false,
-    accountability: input.weekly?.accountability ?? false
+    accountability: input.weekly?.accountability ?? false,
+    sabbath: input.weekly?.sabbath ?? false,
+    service: input.weekly?.service ?? false,
+    direction: input.weekly?.direction ?? false
   },
   mood: input.mood ?? "",
   contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
@@ -1140,14 +1172,15 @@ function App() {
     className: "flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
   }, /*#__PURE__*/React.createElement("span", null, "Weekly Anchors"), /*#__PURE__*/React.createElement("span", null, weekSummary.completedCount, "/", weekSummary.totalAnchors, " done")), /*#__PURE__*/React.createElement("div", {
     className: "mt-2 grid gap-1"
-  }, WEEKLY_ANCHOR_KEYS.map(k => {
-    const complete = weekSummary.anchors[k];
+  }, WEEKLY_ANCHORS.map(({
+    key,
+    label
+  }) => {
+    const complete = weekSummary.anchors[key];
     return /*#__PURE__*/React.createElement("div", {
-      key: k,
+      key: key,
       className: "flex items-center justify-between"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "capitalize"
-    }, k), /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("span", {
       className: "text-xs font-medium " + (complete ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-500 dark:text-zinc-400")
     }, complete ? "Completed" : "Pending"));
   }))))), /*#__PURE__*/React.createElement(MetricTrendsCard, {
@@ -1426,7 +1459,7 @@ function RecentEntryRow({
   const dailyFlags = [Boolean(day.morning?.consecration), Boolean(day.midday?.stillness), Boolean(day.midday?.bodyBlessing), Boolean(day.evening?.examen), Boolean(day.evening?.nightSilence)];
   const dailyCompleted = dailyFlags.filter(Boolean).length;
   const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).length;
-  const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).map(key => key.charAt(0).toUpperCase() + key.slice(1));
+  const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).map(key => WEEKLY_ANCHOR_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1));
   const moodMeta = getMoodMeta(day.mood);
   const moodLabel = moodMeta ? `${moodMeta.emoji} ${moodMeta.label}` : day.mood || "";
   const highlightParts = [];
@@ -2196,15 +2229,18 @@ function WeeklyAnchors({
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2 text-sm"
-  }, WEEKLY_ANCHOR_KEYS.map(k => /*#__PURE__*/React.createElement("label", {
-    key: k,
-    className: "flex items-center justify-between"
+  }, WEEKLY_ANCHORS.map(({
+    key,
+    label
+  }) => /*#__PURE__*/React.createElement("label", {
+    key: key,
+    className: "flex items-center justify-between gap-3"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "capitalize"
-  }, k), /*#__PURE__*/React.createElement("input", {
+    className: "text-sm text-zinc-700 dark:text-zinc-200"
+  }, label), /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
-    checked: all[k],
-    onChange: e => toggle(k, e.target.checked),
+    checked: all[key],
+    onChange: e => toggle(key, e.target.checked),
     className: "h-5 w-5 accent-emerald-600"
   }))), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
