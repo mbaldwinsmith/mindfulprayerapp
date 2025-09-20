@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zen-Catholic Mindfulness & Prayer Tracker</title>
+  <meta name="theme-color" content="#10b981" />
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <!-- React + ReactDOM (UMD) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel for in-browser JSX transform -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    .btn { padding: 0.375rem 0.75rem; border-radius: 0.375rem; border: 1px solid rgb(228,228,231);
+           background: transparent; font-size: 0.875rem; line-height: 1.25rem; transition: background 0.15s ease; }
+    .btn:hover { background: rgba(244,244,245,0.7); }
+    .dark .btn { border-color: rgb(39,39,42); }
+    .dark .btn:hover { background: rgba(39,39,42,0.7); }
+  </style>
+</head>
+<body class="bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useRef, useState } = React;
+
+    const todayISO = () => new Date().toISOString().slice(0, 10);
+    const ymd = (d) => d.toISOString().slice(0, 10);
+    const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+    const STORE_KEY = "zc_tracker_v1";
+    const PIN_KEY = "zc_pin_v1";
+    const THEME_KEY = "zc_theme";
+
+    const blankDay = (date) => ({
+      date,
+      scripture: "",
+      notes: "",
+      morning: { consecration: false, breathMinutes: 0, jesusPrayerCount: 0 },
+      midday: { stillness: false, bodyBlessing: false },
+      evening: { examen: false, rosaryDecades: 0, nightSilence: false },
+      temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
+      weekly: { mass: false, confession: false, fasting: false, accountability: false },
+    });
+
+    function useTheme() {
+      const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || "light");
+      useEffect(() => {
+        const root = document.documentElement;
+        if (theme === "dark") root.classList.add("dark");
+        else root.classList.remove("dark");
+        localStorage.setItem(THEME_KEY, theme);
+      }, [theme]);
+      return { theme, setTheme };
+    }
+
+    function useData() {
+      const [data, setData] = useState(() => {
+        try { const raw = localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : {}; }
+        catch { return {}; }
+      });
+      useEffect(() => { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }, [data]);
+      const setDay = (date, updater) => {
+        setData((prev) => { const cur = prev[date] ?? blankDay(date); return { ...prev, [date]: updater({ ...cur }) }; });
+      };
+      return { data, setData, setDay };
+    }
+
+    function usePIN() {
+      const [pin, setPin] = useState(() => localStorage.getItem(PIN_KEY));
+      const [unlocked, setUnlocked] = useState(() => !pin);
+      const tryUnlock = (attempt) => {
+        if (!pin) return setUnlocked(true);
+        if (attempt === pin) setUnlocked(true); else alert("Incorrect PIN");
+      };
+      const updatePIN = (p) => {
+        if (p) { localStorage.setItem(PIN_KEY, p); setPin(p); setUnlocked(false); }
+        else { localStorage.removeItem(PIN_KEY); setPin(null); setUnlocked(true); }
+      };
+      return { pin, unlocked, tryUnlock, updatePIN };
+    }
+
+    function App() {
+      const { theme, setTheme } = useTheme();
+      const { data, setData, setDay } = useData();
+      const { pin, unlocked, tryUnlock, updatePIN } = usePIN();
+      const [date, setDate] = useState(todayISO());
+
+      const d = useMemo(() => (data[date] ?? blankDay(date)), [data, date]);
+      const streak = useMemo(() => calcStreak(data), [data]);
+      const totals = useMemo(() => calcTotals(data), [data]);
+
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === "ArrowLeft") setDate(prevDay(date, -1)); if (e.key === "ArrowRight") setDate(prevDay(date, 1)); };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, [date]);
+
+      if (!unlocked) return <LockScreen tryUnlock={tryUnlock} />;
+
+      return (
+        <div className="min-h-screen">
+          <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Zen-Catholic Mindfulness & Prayer Tracker</h1>
+              <span className="ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <button className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
+                  {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+                </button>
+                <PinMenu pin={pin} updatePIN={updatePIN} />
+              </span>
+            </div>
+          </header>
+
+          <main className="mx-auto max-w-5xl px-4 py-6 grid gap-6">
+            <TopNav date={date} setDate={setDate} data={data} />
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card title="Morning">
+                <ToggleRow label="Consecration (Offering the day)" checked={d.morning.consecration}
+                           onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, consecration: v } }))} />
+                <TimerRow label="Breath Meditation (min)" minutes={d.morning.breathMinutes}
+                          onChange={(m) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, breathMinutes: clamp(m, 0, 600) } }))} />
+                <CounterRow label="Jesus Prayer (count)" value={d.morning.jesusPrayerCount}
+                            onChange={(n) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, jesusPrayerCount: clamp(n, 0, 100000) } }))} />
+              </Card>
+
+              <Card title="Midday">
+                <ToggleRow label="Stillness Pause" checked={d.midday.stillness}
+                           onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, stillness: v } }))} />
+                <ToggleRow label="Body Blessing" checked={d.midday.bodyBlessing}
+                           onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, bodyBlessing: v } }))} />
+                <TemptationBox date={date} d={d} setDay={setDay} />
+              </Card>
+
+              <Card title="Evening">
+                <ToggleRow label="Examen with Compassion" checked={d.evening.examen}
+                           onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, examen: v } }))} />
+                <StepperRow label="Rosary (decades)" value={d.evening.rosaryDecades} min={0} max={5}
+                            onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))} />
+                <ToggleRow label="Silence Before Sleep" checked={d.evening.nightSilence}
+                           onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, nightSilence: v } }))} />
+              </Card>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card title="Scripture Seed">
+                <textarea value={d.scripture} onChange={(e) => setDay(date, (x) => ({ ...x, scripture: e.target.value }))}
+                          className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="E.g., ‘Blessed are the pure in heart…’ (Matt 5:8)" />
+              </Card>
+
+              <Card title="Weekly Anchors (auto-applies to week)">
+                <WeeklyAnchors date={date} setData={setData} data={data} />
+              </Card>
+
+              <Card title="Journal">
+                <textarea value={d.notes} onChange={(e) => setDay(date, (x) => ({ ...x, notes: e.target.value }))}
+                          className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="Graces, struggles, consolations, inspirations…" />
+              </Card>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card title="Meditation Timer">
+                <MeditationTimer onFinish={(mins) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, breathMinutes: x.morning.breathMinutes + mins } }))} />
+              </Card>
+
+              <Card title="Stats">
+                <div className="text-sm grid gap-2">
+                  <div>Current streak: <b>{streak} day{streak === 1 ? "" : "s"}</b></div>
+                  <div>Total breath meditation: <b>{totals.breathMinutes}</b> min</div>
+                  <div>Total Jesus Prayer: <b>{totals.jesusPrayerCount}</b></div>
+                  <div>Total rosary decades: <b>{totals.rosaryDecades}</b></div>
+                  <div>Victories over urges: <b>{totals.victories}</b> | Lapses: <b>{totals.lapses}</b></div>
+                </div>
+              </Card>
+
+              <Card title="Backup / Restore">
+                <BackupControls data={data} setData={setData} />
+              </Card>
+            </div>
+
+            <footer className="pt-2 pb-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
+              Built for Mark — “see clearly, return gently, offer everything to Christ.”
+            </footer>
+          </main>
+        </div>
+      );
+    }
+
+    function Card({ title, children }) {
+      return (
+        <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 shadow-sm p-4">
+          <h2 className="font-semibold tracking-tight mb-3 text-zinc-800 dark:text-zinc-100">{title}</h2>
+          <div className="grid gap-3 text-sm">{children}</div>
+        </section>
+      );
+    }
+
+    function ToggleRow({ label, checked, onChange }) {
+      return (
+        <label className="flex items-center justify-between gap-3">
+          <span>{label}</span>
+          <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 accent-emerald-600" />
+        </label>
+      );
+    }
+
+    function CounterRow({ label, value, onChange }) {
+      return (
+        <div className="flex items-center justify-between gap-3">
+          <span>{label}</span>
+          <div className="flex items-center gap-2">
+            <button className="btn" onClick={() => onChange(Math.max(0, value - 10))}>−10</button>
+            <button className="btn" onClick={() => onChange(Math.max(0, value - 1))}>−1</button>
+            <span className="tabular-nums min-w-[3ch] text-center">{value}</span>
+            <button className="btn" onClick={() => onChange(value + 1)}>+1</button>
+            <button className="btn" onClick={() => onChange(value + 10)}>+10</button>
+          </div>
+        </div>
+      );
+    }
+
+    function StepperRow({ label, value, min, max, onChange }) {
+      return (
+        <div className="flex items-center justify-between gap-3">
+          <span>{label}</span>
+          <div className="flex items-center gap-2">
+            <button className="btn" onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+            <span className="tabular-nums w-10 text-center">{value}</span>
+            <button className="btn" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+          </div>
+        </div>
+      );
+    }
+
+    function TimerRow({ label, minutes, onChange }) {
+      return (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span>{label}</span>
+            <span className="text-xs text-zinc-500">Logged: <b className="tabular-nums">{minutes}</b> min</span>
+          </div>
+          <div className="flex gap-2">
+            <input type="number" value={minutes} onChange={(e) => onChange(Number(e.target.value))}
+                   className="w-24 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 px-2 py-1 outline-none" />
+          </div>
+        </div>
+      );
+    }
+
+    function MeditationTimer({ onFinish }) {
+      const [running, setRunning] = useState(false);
+      const [seconds, setSeconds] = useState(0);
+      const intervalRef = useRef(null);
+
+      useEffect(() => {
+        if (running) intervalRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000);
+        else if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+      }, [running]);
+
+      const mins = Math.floor(seconds / 60), secs = seconds % 60;
+      const reset = () => setSeconds(0);
+      const finish = () => { setRunning(false); if (mins > 0) onFinish(mins); setSeconds(0); alert(`Logged ${mins} minute(s) of breath meditation.`); };
+
+      return (
+        <div className="flex flex-col items-center gap-3">
+          <div className="text-4xl font-mono tabular-nums">{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</div>
+          <div className="flex gap-2">
+            <button className="btn" onClick={() => setRunning((r) => !r)}>{running ? "Pause" : seconds ? "Resume" : "Start"}</button>
+            <button className="btn" onClick={reset} disabled={running}>Reset</button>
+            <button className="btn" onClick={finish} disabled={running || seconds === 0}>Finish & Log</button>
+          </div>
+          <p className="text-xs text-zinc-500 text-center">Tip: Use the timer during breath prayer. On finish, minutes are added to today’s total.</p>
+        </div>
+      );
+    }
+
+    function TemptationBox({ date, d, setDay }) {
+      const t = d.temptations;
+      return (
+        <div className="grid gap-2">
+          <h3 className="text-sm font-medium">Temptation Tracker</h3>
+          <div className="grid grid-cols-3 gap-2">
+            <SmallCounter label="Urges Noted" value={t.urgesNoted} onChange={(n) => setDay(date, (x) => ({ ...x, temptations: { ...x.temptations, urgesNoted: Math.max(0, n) } }))} />
+            <SmallCounter label="Victories" value={t.victories} onChange={(n) => setDay(date, (x) => ({ ...x, temptations: { ...x.temptations, victories: Math.max(0, n) } }))} />
+            <SmallCounter label="Lapses" value={t.lapses} onChange={(n) => setDay(date, (x) => ({ ...x, temptations: { ...x.temptations, lapses: Math.max(0, n) } }))} />
+          </div>
+          <p className="text-xs text-zinc-500">Note urges gently; celebrate victories; bring lapses to Confession with hope.</p>
+        </div>
+      );
+    }
+
+    function SmallCounter({ label, value, onChange }) {
+      return (
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-2 flex items-center justify-between">
+          <span className="text-xs">{label}</span>
+          <div className="flex items-center gap-1">
+            <button className="btn sm:!px-2" onClick={() => onChange(value - 1)}>−</button>
+            <span className="tabular-nums w-8 text-center text-sm">{value}</span>
+            <button className="btn sm:!px-2" onClick={() => onChange(value + 1)}>+</button>
+          </div>
+        </div>
+      );
+    }
+
+    function WeeklyAnchors({ date, setData, data }) {
+      const week = useMemo(() => weekRange(new Date(date)), [date]);
+      const flags = ["mass", "confession", "fasting", "accountability"];
+      const all = flags.reduce((acc, k) => { acc[k] = week.every((d) => (data[ymd(d)] ?? blankDay(ymd(d))).weekly[k]); return acc; }, {});
+      const toggle = (k, v) => {
+        const updates = { ...data };
+        week.forEach((d) => { const key = ymd(d); const cur = updates[key] ?? blankDay(key); updates[key] = { ...cur, weekly: { ...cur.weekly, [k]: v } }; });
+        setData(updates);
+      };
+      return (
+        <div className="grid gap-2 text-sm">
+          {flags.map((k) => (
+            <label key={k} className="flex items-center justify-between">
+              <span className="capitalize">{k}</span>
+              <input type="checkbox" checked={all[k]} onChange={(e) => toggle(k, e.target.checked)} className="h-5 w-5 accent-emerald-600" />
+            </label>
+          ))}
+          <p className="text-xs text-zinc-500">Applies to Mon–Sun of the selected week.</p>
+        </div>
+      );
+    }
+
+    function TopNav({ date, setDate, data }) {
+      const dots = useMemo(() => monthDots(date, data), [date, data]);
+      return (
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-4 grid gap-3">
+          <div className="flex items-center gap-2">
+            <button className="btn" onClick={() => setDate(prevDay(date, -1))}>← Prev</button>
+            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); }} className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1" />
+            <button className="btn" onClick={() => setDate(todayISO())}>Today</button>
+            <button className="btn" onClick={() => setDate(prevDay(date, 1))}>Next →</button>
+            <span className="ml-auto text-sm text-zinc-500">Tip: Use ← → keys</span>
+          </div>
+          <MiniMonth dots={dots} onPick={setDate} current={date} />
+        </div>
+      );
+    }
+
+    function MiniMonth({ dots, onPick, current }) {
+      const monthLabel = new Date(current).toLocaleString(undefined, { month: "long", year: "numeric" });
+      return (
+        <div>
+          <div className="mb-2 text-sm font-medium">{monthLabel}</div>
+          <div className="grid grid-cols-7 gap-1">
+            {["M","T","W","T","F","S","S"].map((d) => <div key={d} className="text-center text-[10px] text-zinc-500">{d}</div>)}
+            {dots.map(({ date, filled }) => (
+              <button key={date} onClick={() => onPick(date)}
+                className={"aspect-square rounded-md text-[11px] tabular-nums flex items-center justify-center border " +
+                (date===current?"border-emerald-500 ":"border-transparent ") +
+                (filled?"bg-emerald-500/20 dark:bg-emerald-500/25":"bg-zinc-200/30 dark:bg-zinc-800/50")}>
+                {Number(String(date).slice(-2))}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1 text-[10px] text-zinc-500">Filled = any practice done that day</div>
+        </div>
+      );
+    }
+
+    function BackupControls({ data, setData }) {
+      const exportJSON = () => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `zc-tracker-export-${todayISO()}.json`; a.click(); URL.revokeObjectURL(url);
+      };
+      const exportCSV = () => {
+        const rows = toCSV(data);
+        const blob = new Blob([rows], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `zc-tracker-export-${todayISO()}.csv`; a.click(); URL.revokeObjectURL(url);
+      };
+      const importJSON = (file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try { const obj = JSON.parse(String(reader.result)); if (!obj || typeof obj !== "object") throw new Error("Invalid file"); setData(obj); alert("Import successful."); }
+          catch (e) { alert("Import failed: " + e.message); }
+        };
+        reader.readAsText(file);
+      };
+      return (
+        <div className="grid gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button className="btn" onClick={exportJSON}>Export JSON</button>
+            <button className="btn" onClick={exportCSV}>Export CSV</button>
+            <label className="btn cursor-pointer">Import JSON
+              <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files && importJSON(e.target.files[0])} />
+            </label>
+          </div>
+          <p className="text-xs text-zinc-500">Back up locally. Files stay on your device.</p>
+        </div>
+      );
+    }
+
+    function PinMenu({ pin, updatePIN }) {
+      const [open, setOpen] = useState(false);
+      const [val, setVal] = useState(pin || "");
+      return (
+        <div className="relative">
+          <button className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setOpen((o) => !o)}>
+            {pin ? "🔒 PIN" : "🔓 Set PIN"}
+          </button>
+          {open && (
+            <div className="absolute right-0 mt-2 w-64 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-lg">
+              <div className="text-sm mb-2">Optional 4-digit app lock (device-local).</div>
+              <input value={val} onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} placeholder="1234"
+                     className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 mb-2" />
+              <div className="flex gap-2">
+                <button className="btn" onClick={() => { if (val.length === 4) { updatePIN(val); setOpen(false); } else alert("Enter 4 digits"); }}>Set</button>
+                <button className="btn" onClick={() => { updatePIN(null); setVal(""); setOpen(false); }}>Remove</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function LockScreen({ tryUnlock }) {
+      const [val, setVal] = useState("");
+      return (
+        <div className="min-h-screen grid place-items-center bg-zinc-50 dark:bg-zinc-950">
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-6 w-full max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-2">Enter PIN</h2>
+            <input value={val} onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                   className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-center text-2xl tracking-widest" />
+            <button className="btn w-full mt-3" onClick={() => tryUnlock(val)}>Unlock</button>
+            <p className="text-xs text-zinc-500 mt-2">Tip: You can remove the PIN later from the header menu.</p>
+          </div>
+        </div>
+      );
+    }
+
+    function anyPracticeDone(day) {
+      if (!day) return false;
+      return (
+        day.morning.consecration ||
+        day.morning.breathMinutes > 0 ||
+        day.morning.jesusPrayerCount > 0 ||
+        day.midday.stillness ||
+        day.midday.bodyBlessing ||
+        day.evening.examen ||
+        day.evening.rosaryDecades > 0 ||
+        day.evening.nightSilence
+      );
+    }
+
+    function calcStreak(data) {
+      let d = new Date(), count = 0;
+      while (true) { const key = ymd(d), day = data[key]; if (day && anyPracticeDone(day)) count++; else break; d.setDate(d.getDate() - 1); }
+      return count;
+    }
+
+    function calcTotals(data) {
+      return Object.values(data).reduce((acc, d) => {
+        acc.breathMinutes += d.morning?.breathMinutes || 0;
+        acc.jesusPrayerCount += d.morning?.jesusPrayerCount || 0;
+        acc.rosaryDecades += d.evening?.rosaryDecades || 0;
+        acc.victories += d.temptations?.victories || 0;
+        acc.lapses += d.temptations?.lapses || 0;
+        return acc;
+      }, { breathMinutes: 0, jesusPrayerCount: 0, rosaryDecades: 0, victories: 0, lapses: 0 });
+    }
+
+    function weekRange(d) {
+      const day = d.getDay(); const diffToMon = (day + 6) % 7;
+      const start = new Date(d); start.setDate(d.getDate() - diffToMon);
+      const arr = []; for (let i = 0; i < 7; i++) { const t = new Date(start); t.setDate(start.getDate() + i); arr.push(t); }
+      return arr;
+    }
+
+    function prevDay(dateISO, delta) { const d = new Date(dateISO); d.setDate(d.getDate() + delta); return ymd(d); }
+
+    function monthDots(dateISO, data) {
+      const d = new Date(dateISO), first = new Date(d.getFullYear(), d.getMonth(), 1);
+      const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const lead = (first.getDay() + 6) % 7; const arr = [];
+      for (let i = 0; i < lead; i++) arr.push({ date: "lead-" + i, filled: false });
+      for (let i = 1; i <= days; i++) { const dt = new Date(d.getFullYear(), d.getMonth(), i); const key = ymd(dt); arr.push({ date: key, filled: anyPracticeDone(data[key]) }); }
+      return arr;
+    }
+
+    function toCSV(data) {
+      const header = ["Date","Scripture","Notes","Consecration","BreathMinutes","JesusPrayerCount","Stillness","BodyBlessing","Examen","RosaryDecades","NightSilence","UrgesNoted","Victories","Lapses","Mass","Confession","Fasting","Accountability"];
+      const rows = [header.join(",")], keys = Object.keys(data).sort();
+      for (const k of keys) {
+        const d = data[k];
+        rows.push([
+          d.date, csvQuote(d.scripture), csvQuote(d.notes),
+          d.morning.consecration?1:0, d.morning.breathMinutes, d.morning.jesusPrayerCount,
+          d.midday.stillness?1:0, d.midday.bodyBlessing?1:0, d.evening.examen?1:0, d.evening.rosaryDecades,
+          d.evening.nightSilence?1:0, d.temptations.urgesNoted, d.temptations.victories, d.temptations.lapses,
+          d.weekly.mass?1:0, d.weekly.confession?1:0, d.weekly.fasting?1:0, d.weekly.accountability?1:0
+        ].join(","));
+      }
+      return rows.join("\n");
+    }
+    const csvQuote = (s) => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+
+    function AppRoot() { return <App />; }
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<AppRoot />);
+  </script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch((err) => console.warn("SW registration failed", err));
+      });
+    }
+  </script>
+</body>
+</html>
