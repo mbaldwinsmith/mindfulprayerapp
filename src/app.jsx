@@ -374,6 +374,68 @@ const normalizeDay = (input = {}) => ({
   customMetrics: input.customMetrics ?? {},
 });
 
+function dayHasActivity(day) {
+  if (!day) return false;
+  if (typeof day.scripture === "string" && day.scripture.trim()) return true;
+  if (typeof day.notes === "string" && day.notes.trim()) return true;
+  if (Array.isArray(day.contextTags) && day.contextTags.some((tag) => String(tag || "").trim())) return true;
+  if (day.mood) return true;
+  if (day.morning?.consecration) return true;
+  if ((day.morning?.breathMinutes || 0) > 0) return true;
+  if ((day.morning?.jesusPrayerCount || 0) > 0) return true;
+  if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
+  if (day.evening?.examen || day.evening?.nightSilence) return true;
+  if ((day.evening?.rosaryDecades || 0) > 0) return true;
+  if ((day.temptations?.urgesNoted || 0) > 0) return true;
+  if ((day.temptations?.victories || 0) > 0) return true;
+  if ((day.temptations?.lapses || 0) > 0) return true;
+  if (WEEKLY_ANCHOR_KEYS.some((key) => day.weekly?.[key])) return true;
+  if (day.customMetrics && typeof day.customMetrics === "object") {
+    for (const value of Object.values(day.customMetrics)) {
+      const numeric = typeof value === "number" ? value : Number(value);
+      if (Number.isFinite(numeric) && Math.abs(numeric) > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function collectRecentEntries(data, { tag = "", limit = 10 } = {}) {
+  if (!data) return { entries: [], totalMatching: 0 };
+  const normalizedTag = typeof tag === "string" ? tag.trim() : "";
+  const keys = Object.keys(data || {})
+    .filter(Boolean)
+    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  const max = Number.isFinite(limit) && limit > 0 ? limit : Infinity;
+  const entries = [];
+  let totalMatching = 0;
+
+  keys.forEach((key) => {
+    const raw = data[key];
+    if (!raw) return;
+    const normalized = normalizeDay({ ...raw, date: key });
+    if (!dayHasActivity(normalized)) return;
+    if (normalizedTag && !normalized.contextTags.includes(normalizedTag)) return;
+    totalMatching += 1;
+    if (entries.length < max) {
+      entries.push(normalized);
+    }
+  });
+
+  return { entries, totalMatching };
+}
+
+function truncateText(value, maxLength = 120) {
+  if (value == null) return "";
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
 function exportDataJSON(data) {
   try {
     const blob = new Blob([JSON.stringify(data || {}, null, 2)], { type: "application/json" });
@@ -769,6 +831,9 @@ function App() {
   }, [preferences.customMetrics]);
   const [selectedMetric, setSelectedMetric] = useState(() => metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
   const [metricView, setMetricView] = useState("daily");
+  const [historyTag, setHistoryTag] = useState("");
+
+  const historyLimit = 10;
 
   useEffect(() => {
     if (!metricOptions.some((option) => option.value === selectedMetric)) {
@@ -798,6 +863,12 @@ function App() {
     () => computeMetricHighlights(metricSeries, metricConfig, metricView),
     [metricSeries, metricConfig, metricView],
   );
+  const historyEntries = useMemo(
+    () => collectRecentEntries(data, { tag: historyTag, limit: historyLimit }),
+    [data, historyTag],
+  );
+  const recentEntries = historyEntries.entries;
+  const historyCount = historyEntries.totalMatching;
   const weekStartLabel = useMemo(() => {
     const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
     if (!startDate || Number.isNaN(startDate.getTime())) return "--";
@@ -813,6 +884,12 @@ function App() {
     [data, preferences.customMetrics],
   );
   const tagSummary = useMemo(() => summarizeTags(data), [data]);
+  useEffect(() => {
+    if (!historyTag) return;
+    if (!tagSummary.some(([tag]) => tag === historyTag)) {
+      setHistoryTag("");
+    }
+  }, [historyTag, tagSummary]);
   const moodSummary = useMemo(() => summarizeMood(data), [data]);
   const latestMoodMeta = useMemo(() => getMoodMeta(moodSummary.latest?.mood), [moodSummary]);
   const { activeReminder, markReminderDone, snoozeReminder, requestNotifications } = useReminders(
@@ -829,6 +906,17 @@ function App() {
       spotlightIndex: (prev.spotlightIndex + 1) % PRACTICE_SPOTLIGHTS.length,
     }));
   }, [updatePreferences]);
+
+  const jumpToDate = useCallback(
+    (targetDate) => {
+      if (!targetDate) return;
+      setDate(targetDate);
+      if (typeof window !== "undefined" && window.scrollTo) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    },
+    [setDate],
+  );
 
   useEffect(() => {
     const onKey = (e) => {
@@ -1191,13 +1279,24 @@ function App() {
                     ))}
                   </div>
                 </div>
-              ) : null}
-            </div>
-          </Card>
+          ) : null}
+        </div>
+      </Card>
 
-          <Card title="Backup / Restore">
-            <BackupControls data={data} setData={setData} preferences={preferences} updatePreferences={updatePreferences} />
-          </Card>
+      <RecentEntriesCard
+        entries={recentEntries}
+        totalMatching={historyCount}
+        limit={historyLimit}
+        tagSummary={tagSummary}
+        selectedTag={historyTag}
+        onSelectTag={setHistoryTag}
+        onSelectDate={jumpToDate}
+        customMetricDefinitions={preferences.customMetrics}
+      />
+
+      <Card title="Backup / Restore">
+        <BackupControls data={data} setData={setData} preferences={preferences} updatePreferences={updatePreferences} />
+      </Card>
 
           <Card title="Settings & Safety">
             <div className="grid gap-2 text-sm">
@@ -1249,6 +1348,221 @@ function App() {
       </main>
     </div>
   </div>
+  );
+}
+
+function RecentEntriesCard({
+  entries,
+  totalMatching,
+  limit,
+  tagSummary,
+  selectedTag,
+  onSelectTag,
+  onSelectDate,
+  customMetricDefinitions,
+}) {
+  const tagOptions = useMemo(() => tagSummary.map(([tag, count]) => ({ tag, count })), [tagSummary]);
+  const customMetricMap = useMemo(() => {
+    const map = new Map();
+    (customMetricDefinitions || []).forEach((metric) => {
+      if (metric && metric.id) {
+        map.set(metric.id, metric);
+      }
+    });
+    return map;
+  }, [customMetricDefinitions]);
+  const hasFilter = Boolean(selectedTag);
+  const hasEntries = totalMatching > 0;
+  const showingCount = entries.length;
+  const finiteLimit = Number.isFinite(limit) && limit > 0 ? limit : Infinity;
+  const entryWord = showingCount === 1 ? "entry" : "entries";
+  const filterLabel = hasFilter ? `#${selectedTag} ` : "";
+  let summaryText = hasFilter ? `No ${filterLabel}entries yet` : "No entries yet";
+
+  if (hasEntries) {
+    if (finiteLimit !== Infinity && totalMatching > finiteLimit) {
+      summaryText = `Latest ${showingCount} ${filterLabel}${entryWord} of ${totalMatching}`;
+    } else {
+      summaryText = `${showingCount} ${filterLabel}${entryWord}`;
+    }
+  }
+
+  return (
+    <Card title="Recent reflections">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <label className="flex items-center gap-2">
+          <span>Filter by tag</span>
+          <select
+            value={selectedTag}
+            onChange={(e) => onSelectTag(e.target.value)}
+            disabled={!tagOptions.length}
+            className="rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-xs dark:border-zinc-800"
+            aria-label="Filter history by tag"
+          >
+            <option value="">All tags</option>
+            {tagOptions.map(({ tag, count }) => (
+              <option key={tag} value={tag}>
+                #{tag} · {count}
+              </option>
+            ))}
+          </select>
+        </label>
+        {hasFilter ? (
+          <button type="button" className="btn text-xs px-3 py-1" onClick={() => onSelectTag("")}>
+            Clear filter
+          </button>
+        ) : null}
+        <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">{summaryText}</span>
+      </div>
+
+      <div className="grid gap-3">
+        {hasEntries ? (
+          entries.map((entry) => (
+            <RecentEntryRow
+              key={entry.date}
+              day={entry}
+              onSelectDate={onSelectDate}
+              customMetricMap={customMetricMap}
+            />
+          ))
+        ) : (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {hasFilter
+              ? "Log a reflection with this tag to see it here."
+              : "Once you log prayers or notes, a quick history appears for gentle review."}
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
+  const date = new Date(day.date);
+  const formattedDate = Number.isNaN(date.getTime())
+    ? day.date
+    : date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const dailyFlags = [
+    Boolean(day.morning?.consecration),
+    Boolean(day.midday?.stillness),
+    Boolean(day.midday?.bodyBlessing),
+    Boolean(day.evening?.examen),
+    Boolean(day.evening?.nightSilence),
+  ];
+  const dailyCompleted = dailyFlags.filter(Boolean).length;
+  const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).length;
+  const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).map(
+    (key) => key.charAt(0).toUpperCase() + key.slice(1),
+  );
+  const moodMeta = getMoodMeta(day.mood);
+  const moodLabel = moodMeta ? `${moodMeta.emoji} ${moodMeta.label}` : day.mood || "";
+  const highlightParts = [];
+  if ((day.morning?.breathMinutes || 0) > 0)
+    highlightParts.push(`Breath ${day.morning.breathMinutes} min`);
+  if ((day.morning?.jesusPrayerCount || 0) > 0)
+    highlightParts.push(`Jesus Prayer ${day.morning.jesusPrayerCount}`);
+  if ((day.evening?.rosaryDecades || 0) > 0)
+    highlightParts.push(
+      `Rosary ${day.evening.rosaryDecades} decade${day.evening.rosaryDecades === 1 ? "" : "s"}`,
+    );
+  if ((day.temptations?.urgesNoted || 0) > 0)
+    highlightParts.push(`Urges noted ${day.temptations.urgesNoted}`);
+  if ((day.temptations?.victories || 0) > 0)
+    highlightParts.push(`Victories ${day.temptations.victories}`);
+  if ((day.temptations?.lapses || 0) > 0)
+    highlightParts.push(`Lapses ${day.temptations.lapses}`);
+
+  const practiceBadges = [];
+  if (day.morning?.consecration) practiceBadges.push("🌅 Consecration");
+  if (day.midday?.stillness) practiceBadges.push("🕰️ Stillness pause");
+  if (day.midday?.bodyBlessing) practiceBadges.push("🤲 Body blessing");
+  if (day.evening?.examen) practiceBadges.push("🌙 Evening examen");
+  if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
+
+  const customMetricChips = [];
+  if (customMetricMap && customMetricMap.size) {
+    Object.entries(day.customMetrics || {}).forEach(([id, raw]) => {
+      const numeric = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(numeric) || numeric === 0) return;
+      const def = customMetricMap.get(id);
+      const name = def?.name || "Custom";
+      const unit = def?.unit ? ` ${def.unit}` : "";
+      customMetricChips.push({ id, label: `${name}: ${formatMetricValue(numeric)}${unit}` });
+    });
+  }
+
+  const tags = Array.isArray(day.contextTags)
+    ? day.contextTags
+        .map((tag) => String(tag || "").trim())
+        .filter(Boolean)
+    : [];
+
+  const scripturePreview = truncateText(day.scripture, 100);
+  const notesPreview = truncateText(day.notes, 140);
+
+  return (
+    <article className="rounded-2xl border border-white/60 bg-white/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{formattedDate}</span>
+          <span>Daily {dailyCompleted}/5</span>
+          <span>Weekly {weeklyCompleted}/{WEEKLY_ANCHOR_KEYS.length}</span>
+        </div>
+        <button
+          type="button"
+          className="btn ml-auto text-xs px-3 py-1"
+          onClick={() => onSelectDate(day.date)}
+        >
+          Review day
+        </button>
+      </div>
+      {moodLabel ? (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          Mood: <span className="font-medium text-zinc-700 dark:text-zinc-200">{moodLabel}</span>
+        </div>
+      ) : null}
+      {highlightParts.length ? (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">{highlightParts.join(" · ")}</div>
+      ) : null}
+      {practiceBadges.length ? (
+        <div className="flex flex-wrap gap-2">
+          {practiceBadges.map((badge) => (
+            <span key={badge} className="chip text-[11px]">
+              {badge}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {weeklyCompletedNames.length ? (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          Weekly anchors: {weeklyCompletedNames.join(", ")}
+        </div>
+      ) : null}
+      {customMetricChips.length ? (
+        <div className="flex flex-wrap gap-2">
+          {customMetricChips.map((chip) => (
+            <span key={chip.id} className="chip text-[11px]">
+              {chip.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {tags.length ? (
+        <div className="flex flex-wrap gap-2">
+          {tags.slice(0, 5).map((tag) => (
+            <span key={tag} className="chip text-[11px]">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {scripturePreview ? (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">Scripture: {scripturePreview}</p>
+      ) : null}
+      {notesPreview ? (
+        <p className="text-xs italic text-zinc-500 dark:text-zinc-400">Journal: {notesPreview}</p>
+      ) : null}
+    </article>
   );
 }
 
