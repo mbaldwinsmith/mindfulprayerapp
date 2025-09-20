@@ -73,7 +73,9 @@ const blankDay = date => ({
     angelus: false,
     magnificat: false,
     rosaryDecades: 0,
-    nightSilence: false
+    nightSilence: false,
+    actOfContrition: false,
+    gratitudePrayer: false
   },
   temptations: {
     urgesNoted: 0,
@@ -223,7 +225,12 @@ const MARIAN_CONSECRATION_URL = "https://militiaoftheimmaculata.com/act-of-conse
 const ANGELUS_PRAYER_URL = "https://theangelusprayer.com/angelus-prayer/";
 const BENEDICTUS_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/68-79";
 const MAGNIFICAT_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/46-55";
+const ACT_OF_CONTRITION_URL = "https://www.vaticannews.va/en/prayers/act-of-contrition.html";
 const BODY_BLESSING_TOOLTIP = "A gentle practice of tracing blessings over your body, inviting Christ's healing and peace.";
+const BREATHE_MEDITATION_TOOLTIP = "Sit upright in silence for a few deep breaths.";
+const JESUS_PRAYER_TOOLTIP = "(In breath) Lord Jesus Christ, Son of God, (out breath) have mercy on me, a sinner.";
+const STILLNESS_PAUSE_TOOLTIP = "Wherever you are, take three slow breaths. Rest in stillness, imagining Christ sitting with you.";
+const GRATITUDE_PRAYER_TOOLTIP = "Give thanks to God for one person, event, or challenge from today.";
 const ROSARY_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ROSARY_MYSTERIES = {
   joyful: {
@@ -526,7 +533,7 @@ const SUM_AGGREGATE = {
 };
 const BASE_METRIC_OPTIONS = [{
   value: "breathMinutes",
-  label: "Breath meditation (min)",
+  label: "Breathe meditation (min)",
   accessor: day => day.morning.breathMinutes || 0,
   unit: "min",
   aggregate: SUM_AGGREGATE
@@ -624,6 +631,20 @@ const BASE_METRIC_OPTIONS = [{
   weeklyUnit: "days",
   aggregate: SUM_AGGREGATE
 }, {
+  value: "eveningActOfContrition",
+  label: "Act of Contrition",
+  accessor: day => day.evening.actOfContrition ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "eveningGratitudePrayer",
+  label: "Gratitude prayer",
+  accessor: day => day.evening.gratitudePrayer ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
   value: "nightSilence",
   label: "Silence before sleep",
   accessor: day => day.evening.nightSilence ? 1 : 0,
@@ -673,7 +694,9 @@ const normalizeDay = (input = {}) => ({
     angelus: input.evening?.angelus ?? false,
     magnificat: input.evening?.magnificat ?? false,
     rosaryDecades: input.evening?.rosaryDecades ?? 0,
-    nightSilence: input.evening?.nightSilence ?? false
+    nightSilence: input.evening?.nightSilence ?? false,
+    actOfContrition: input.evening?.actOfContrition ?? false,
+    gratitudePrayer: input.evening?.gratitudePrayer ?? false
   },
   temptations: {
     urgesNoted: input.temptations?.urgesNoted ?? 0,
@@ -706,6 +729,8 @@ function dayHasActivity(day) {
   if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
   if (day.evening?.examen || day.evening?.nightSilence) return true;
   if (day.evening?.magnificat) return true;
+  if (day.evening?.actOfContrition) return true;
+  if (day.evening?.gratitudePrayer) return true;
   if ((day.evening?.rosaryDecades || 0) > 0) return true;
   if ((day.temptations?.urgesNoted || 0) > 0) return true;
   if ((day.temptations?.victories || 0) > 0) return true;
@@ -1326,7 +1351,7 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid md:grid-cols-3 gap-6"
   }, /*#__PURE__*/React.createElement(Card, {
-    title: "Morning"
+    title: "Morning \u2014 Awakening in Christ"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: MARIAN_CONSECRATION_URL,
@@ -1373,7 +1398,16 @@ function App() {
       }
     }))
   }), /*#__PURE__*/React.createElement(TimerRow, {
-    label: "Breath Meditation (min)",
+    label: /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "cursor-help underline decoration-dotted underline-offset-2",
+      title: BREATHE_MEDITATION_TOOLTIP
+    }, "Breathe Meditation (min)"), /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
+      title: BREATHE_MEDITATION_TOOLTIP,
+      "aria-hidden": "true"
+    }, "?")),
     minutes: d.morning.breathMinutes,
     onChange: m => setDay(date, x => ({
       ...x,
@@ -1383,7 +1417,16 @@ function App() {
       }
     }))
   }), /*#__PURE__*/React.createElement(CounterRow, {
-    label: "Jesus Prayer (count)",
+    label: /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "cursor-help underline decoration-dotted underline-offset-2",
+      title: JESUS_PRAYER_TOOLTIP
+    }, "Jesus Prayer (count)"), /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
+      title: JESUS_PRAYER_TOOLTIP,
+      "aria-hidden": "true"
+    }, "?")),
     value: d.morning.jesusPrayerCount,
     onChange: n => setDay(date, x => ({
       ...x,
@@ -1393,7 +1436,7 @@ function App() {
       }
     }))
   })), /*#__PURE__*/React.createElement(Card, {
-    title: "Midday"
+    title: "Midday \u2014 Re-centring on Christ"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: ANGELUS_PRAYER_URL,
@@ -1410,7 +1453,16 @@ function App() {
       }
     }))
   }), /*#__PURE__*/React.createElement(ToggleRow, {
-    label: "Stillness Pause",
+    label: /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "cursor-help underline decoration-dotted underline-offset-2",
+      title: STILLNESS_PAUSE_TOOLTIP
+    }, "Stillness Pause"), /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
+      title: STILLNESS_PAUSE_TOOLTIP,
+      "aria-hidden": "true"
+    }, "?")),
     checked: d.midday.stillness,
     onChange: v => setDay(date, x => ({
       ...x,
@@ -1448,7 +1500,7 @@ function App() {
     setDay: setDay,
     customMetrics: preferences.customMetrics
   })), /*#__PURE__*/React.createElement(Card, {
-    title: "Evening"
+    title: "Evening \u2014 Resting in Christ"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: ANGELUS_PRAYER_URL,
@@ -1503,6 +1555,9 @@ function App() {
     }))
   }), /*#__PURE__*/React.createElement(RosaryMysteryNote, {
     mystery: rosaryMystery
+  }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
+    title: "Gentle examen",
+    prompts: EXAMEN_PROMPTS
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: "Silence Before Sleep",
     checked: d.evening.nightSilence,
@@ -1513,9 +1568,40 @@ function App() {
         nightSilence: v
       }
     }))
-  }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
-    title: "Gentle examen",
-    prompts: EXAMEN_PROMPTS
+  }), /*#__PURE__*/React.createElement(ToggleRow, {
+    label: /*#__PURE__*/React.createElement("a", {
+      href: ACT_OF_CONTRITION_URL,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+    }, "Act of Contrition"),
+    checked: d.evening.actOfContrition,
+    onChange: v => setDay(date, x => ({
+      ...x,
+      evening: {
+        ...x.evening,
+        actOfContrition: v
+      }
+    }))
+  }), /*#__PURE__*/React.createElement(ToggleRow, {
+    label: /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "cursor-help underline decoration-dotted underline-offset-2",
+      title: GRATITUDE_PRAYER_TOOLTIP
+    }, "Gratitude Prayer"), /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
+      title: GRATITUDE_PRAYER_TOOLTIP,
+      "aria-hidden": "true"
+    }, "?")),
+    checked: d.evening.gratitudePrayer,
+    onChange: v => setDay(date, x => ({
+      ...x,
+      evening: {
+        ...x.evening,
+        gratitudePrayer: v
+      }
+    }))
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid md:grid-cols-3 gap-6"
   }, /*#__PURE__*/React.createElement(Card, {
@@ -1701,7 +1787,15 @@ function App() {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Silence before sleep"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
-  }, totals.eveningNightSilence)))), /*#__PURE__*/React.createElement("div", {
+  }, totals.eveningNightSilence)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Act of Contrition"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.eveningActOfContrition)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Gratitude prayer"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.eveningGratitudePrayer)))), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-1"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
@@ -1903,7 +1997,7 @@ function RecentEntryRow({
     month: "short",
     day: "numeric"
   });
-  const dailyFlags = [Boolean(day.morning?.consecration), Boolean(day.morning?.angelus), Boolean(day.morning?.benedictus), Boolean(day.midday?.stillness), Boolean(day.midday?.angelus), Boolean(day.midday?.bodyBlessing), Boolean(day.evening?.examen), Boolean(day.evening?.angelus), Boolean(day.evening?.magnificat), Boolean(day.evening?.nightSilence)];
+  const dailyFlags = [Boolean(day.morning?.consecration), Boolean(day.morning?.angelus), Boolean(day.morning?.benedictus), Boolean(day.midday?.stillness), Boolean(day.midday?.angelus), Boolean(day.midday?.bodyBlessing), Boolean(day.evening?.examen), Boolean(day.evening?.angelus), Boolean(day.evening?.magnificat), Boolean(day.evening?.nightSilence), Boolean(day.evening?.actOfContrition), Boolean(day.evening?.gratitudePrayer)];
   const dailyCompleted = dailyFlags.filter(Boolean).length;
   const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).length;
   const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter(key => day.weekly?.[key]).map(key => WEEKLY_ANCHOR_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1));
@@ -1927,6 +2021,8 @@ function RecentEntryRow({
   if (day.evening?.angelus) practiceBadges.push("🔔 Evening Angelus");
   if (day.evening?.magnificat) practiceBadges.push("🎶 Magnificat");
   if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
+  if (day.evening?.actOfContrition) practiceBadges.push("🕯️ Act of Contrition");
+  if (day.evening?.gratitudePrayer) practiceBadges.push("✨ Gratitude prayer");
   const customMetricChips = [];
   if (customMetricMap && customMetricMap.size) {
     Object.entries(day.customMetrics || {}).forEach(([id, raw]) => {
@@ -3256,7 +3352,7 @@ function addDaysISO(dateISO, days) {
 }
 function anyPracticeDone(day) {
   if (!day) return false;
-  return day.morning.consecration || day.morning.angelus || day.morning.benedictus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.angelus || day.midday.bodyBlessing || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.magnificat || day.evening.nightSilence;
+  return day.morning.consecration || day.morning.angelus || day.morning.benedictus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.angelus || day.midday.bodyBlessing || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.magnificat || day.evening.nightSilence || day.evening.actOfContrition || day.evening.gratitudePrayer;
 }
 function calcStreak(data) {
   let d = new Date();
@@ -3317,6 +3413,8 @@ function calcTotals(data) {
     if (evening.angelus) acc.eveningAngelus += 1;
     if (evening.magnificat) acc.eveningMagnificat += 1;
     if (evening.nightSilence) acc.eveningNightSilence += 1;
+    if (evening.actOfContrition) acc.eveningActOfContrition += 1;
+    if (evening.gratitudePrayer) acc.eveningGratitudePrayer += 1;
     if (weekly.mass) acc.weeklyMass += 1;
     if (weekly.confession) acc.weeklyConfession += 1;
     if (weekly.fasting) acc.weeklyFasting += 1;
@@ -3342,6 +3440,8 @@ function calcTotals(data) {
     eveningAngelus: 0,
     eveningMagnificat: 0,
     eveningNightSilence: 0,
+    eveningActOfContrition: 0,
+    eveningGratitudePrayer: 0,
     weeklyMass: 0,
     weeklyConfession: 0,
     weeklyFasting: 0,
@@ -3491,7 +3591,7 @@ function monthDots(dateISO, data) {
   return arr;
 }
 function toCSV(data, customMetrics = []) {
-  const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "MorningBenedictus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "EveningMagnificat", "RosaryDecades", "NightSilence", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
+  const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "MorningBenedictus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "EveningMagnificat", "RosaryDecades", "NightSilence", "ActOfContrition", "GratitudePrayer", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
   customMetrics.forEach(metric => header.push(metric.name || metric.id));
   const rows = [header.join(",")];
   const keys = Object.keys(data).sort();
@@ -3499,7 +3599,7 @@ function toCSV(data, customMetrics = []) {
     const day = data[k];
     const tags = Array.isArray(day.contextTags) ? day.contextTags.join(" ") : "";
     const mood = day.mood || "";
-    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.angelus ? 1 : 0, day.morning.benedictus ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.angelus ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.angelus ? 1 : 0, day.evening.magnificat ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
+    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.angelus ? 1 : 0, day.morning.benedictus ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.angelus ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.angelus ? 1 : 0, day.evening.magnificat ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.evening.actOfContrition ? 1 : 0, day.evening.gratitudePrayer ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
       const raw = day.customMetrics?.[metric.id];
       return Number(raw ?? 0);
     })].join(","));
