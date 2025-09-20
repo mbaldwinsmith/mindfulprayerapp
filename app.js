@@ -277,7 +277,7 @@ function buildBibliaUrl(reference) {
   const path = `${normalizedBook}${chapter}${verseSegment ? `.${verseSegment}` : ""}`;
   return `https://biblia.com/books/esv/${path}`;
 }
-const CATECHISM_BASE_URL = "https://www.vatican.va/archive/ccc_css/archive/catechism/";
+const CATECHISM_BASE_URL = "http://www.scborromeo.org/ccc/";
 const CATECHISM_READINGS = [{
   slug: "p1s1c1a1",
   section: "Part One · Section One · Chapter One · Article 1",
@@ -440,7 +440,7 @@ const CATECHISM_READINGS = [{
   summary: "Perseverance, humility, and trust sustain us amid distractions and spiritual struggle."
 }].map(entry => ({
   ...entry,
-  url: `${CATECHISM_BASE_URL}${entry.slug}.htm`
+  url: `${CATECHISM_BASE_URL}${entry.slug}.htm${entry.anchor ? `#${entry.anchor}` : ""}`
 }));
 const SCRIPTURE_SEED_PLAN = SCRIPTURE_SEED_REFERENCES.map((reference, index) => ({
   reference: `${reference} (ESV)`,

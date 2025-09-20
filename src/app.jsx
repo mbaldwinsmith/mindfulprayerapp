@@ -670,7 +670,7 @@ function buildBibliaUrl(reference) {
   return `https://biblia.com/books/esv/${path}`;
 }
 
-const CATECHISM_BASE_URL = "https://www.vatican.va/archive/ccc_css/archive/catechism/";
+const CATECHISM_BASE_URL = "http://www.scborromeo.org/ccc/";
 
 const CATECHISM_READINGS = [
   {
@@ -867,7 +867,7 @@ const CATECHISM_READINGS = [
   },
 ].map((entry) => ({
   ...entry,
-  url: `${CATECHISM_BASE_URL}${entry.slug}.htm`,
+  url: `${CATECHISM_BASE_URL}${entry.slug}.htm${entry.anchor ? `#${entry.anchor}` : ""}`,
 }));
 
 const SCRIPTURE_SEED_PLAN = SCRIPTURE_SEED_REFERENCES.map((reference, index) => ({
