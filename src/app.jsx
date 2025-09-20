@@ -182,6 +182,500 @@ const DEFAULT_PREFERENCES = {
   tomorrowPlan: "",
 };
 
+const MARIAN_CONSECRATION_URL =
+  "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/#:~:text=Maximilian%20Kolbe-,O%20IMMACULATA%2C,ourselves%20to%20you%20our%20Mother.";
+
+const BODY_BLESSING_TOOLTIP =
+  "A gentle practice of tracing blessings over your body, inviting Christ's healing and peace.";
+
+const ROSARY_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const ROSARY_MYSTERIES = {
+  joyful: {
+    title: "Joyful Mysteries",
+    meditation: "Rejoice in Christ's Incarnation and the quiet yes of Mary.",
+    decades: [
+      "The Annunciation",
+      "The Visitation",
+      "The Nativity",
+      "The Presentation",
+      "Finding Jesus in the Temple",
+    ],
+  },
+  sorrowful: {
+    title: "Sorrowful Mysteries",
+    meditation: "Abide with Jesus in His Passion and offer compassion to all who suffer.",
+    decades: [
+      "The Agony in the Garden",
+      "The Scourging at the Pillar",
+      "The Crowning with Thorns",
+      "The Carrying of the Cross",
+      "The Crucifixion",
+    ],
+  },
+  glorious: {
+    title: "Glorious Mysteries",
+    meditation: "Celebrate the victory of the Resurrection and the hope of glory.",
+    decades: [
+      "The Resurrection",
+      "The Ascension",
+      "The Descent of the Holy Spirit",
+      "The Assumption of Mary",
+      "The Coronation of Mary",
+    ],
+  },
+  luminous: {
+    title: "Luminous Mysteries",
+    meditation: "Contemplate Christ's public ministry shining light for the world.",
+    decades: [
+      "The Baptism in the Jordan",
+      "The Wedding at Cana",
+      "The Proclamation of the Kingdom",
+      "The Transfiguration",
+      "The Institution of the Eucharist",
+    ],
+  },
+};
+
+const ROSARY_SCHEDULE = {
+  0: "glorious",
+  1: "joyful",
+  2: "sorrowful",
+  3: "glorious",
+  4: "luminous",
+  5: "sorrowful",
+  6: "joyful",
+};
+
+const SCRIPTURE_FOCUS_ROTATION = [
+  "Rest in God's steady presence today.",
+  "Welcome the gentle light of Christ.",
+  "Let the Spirit breathe healing within.",
+  "Receive the Father's compassionate mercy.",
+  "Stand firm in God's faithful promises.",
+  "Find hope in the risen Lord.",
+  "Rejoice in grace that renews.",
+  "Draw near with gratitude and trust.",
+  "Open your heart to loving kindness.",
+  "Wait on the Lord with courage.",
+  "Walk in the freedom of forgiveness.",
+  "Savor the peace Jesus gives.",
+  "Lift your voice in thankful praise.",
+  "Lean on God's everlasting arms.",
+  "Embrace the joy of salvation.",
+  "Let God's word steady your steps.",
+  "Remember you are held in love.",
+  "Invite the Spirit to guide you.",
+  "Rest under God's protective wings.",
+  "Let hope anchor your soul.",
+  "Celebrate the light that overcomes darkness.",
+  "Trust the Shepherd to lead you.",
+  "Drink deeply from God's living water.",
+  "Carry Christ's compassion into the day.",
+];
+
+const SCRIPTURE_SEED_REFERENCES = [
+  "Psalm 1:1-3",
+  "Psalm 3:3-6",
+  "Psalm 4:3-8",
+  "Psalm 5:1-3",
+  "Psalm 8:1-4",
+  "Psalm 9:9-11",
+  "Psalm 13:5-6",
+  "Psalm 16:5-11",
+  "Psalm 18:1-3",
+  "Psalm 18:28-36",
+  "Psalm 19:7-10",
+  "Psalm 20:1-5",
+  "Psalm 23:1-6",
+  "Psalm 25:4-10",
+  "Psalm 27:1-6",
+  "Psalm 28:6-9",
+  "Psalm 29:10-11",
+  "Psalm 30:1-5",
+  "Psalm 31:19-24",
+  "Psalm 32:1-7",
+  "Psalm 33:18-22",
+  "Psalm 34:1-10",
+  "Psalm 34:17-22",
+  "Psalm 36:5-9",
+  "Psalm 37:3-7",
+  "Psalm 40:1-5",
+  "Psalm 42:1-5",
+  "Psalm 42:8-11",
+  "Psalm 43:3-5",
+  "Psalm 46:1-7",
+  "Psalm 46:8-11",
+  "Psalm 48:9-14",
+  "Psalm 51:10-13",
+  "Psalm 55:16-22",
+  "Psalm 56:3-4",
+  "Psalm 57:7-11",
+  "Psalm 61:1-4",
+  "Psalm 62:1-8",
+  "Psalm 63:1-8",
+  "Psalm 65:9-13",
+  "Psalm 66:16-20",
+  "Psalm 68:4-10",
+  "Psalm 71:1-8",
+  "Psalm 71:17-21",
+  "Psalm 73:23-28",
+  "Psalm 77:11-15",
+  "Psalm 80:1-3",
+  "Psalm 84:1-7",
+  "Psalm 85:7-13",
+  "Psalm 86:11-13",
+  "Psalm 90:1-2",
+  "Psalm 90:12-17",
+  "Psalm 91:1-6",
+  "Psalm 91:9-16",
+  "Psalm 92:1-5",
+  "Psalm 94:17-19",
+  "Psalm 95:1-7",
+  "Psalm 96:1-6",
+  "Psalm 97:10-12",
+  "Psalm 98:1-3",
+  "Psalm 100:1-5",
+  "Psalm 101:1-3",
+  "Psalm 103:1-5",
+  "Psalm 103:8-14",
+  "Psalm 103:17-22",
+  "Psalm 104:1-4",
+  "Psalm 104:24-30",
+  "Psalm 105:1-5",
+  "Psalm 107:1-9",
+  "Psalm 108:1-6",
+  "Psalm 111:1-5",
+  "Psalm 112:1-9",
+  "Psalm 113:1-9",
+  "Psalm 115:9-15",
+  "Psalm 116:1-9",
+  "Psalm 116:12-19",
+  "Psalm 117:1-2",
+  "Psalm 118:14-24",
+  "Psalm 119:9-16",
+  "Psalm 119:33-40",
+  "Psalm 119:49-56",
+  "Psalm 119:57-64",
+  "Psalm 119:89-96",
+  "Psalm 119:97-105",
+  "Psalm 121:1-8",
+  "Psalm 122:6-9",
+  "Psalm 124:6-8",
+  "Psalm 125:1-5",
+  "Psalm 126:1-6",
+  "Psalm 130:1-8",
+  "Psalm 131:1-3",
+  "Psalm 132:13-18",
+  "Psalm 133:1-3",
+  "Psalm 134:1-3",
+  "Psalm 138:1-8",
+  "Psalm 139:1-10",
+  "Psalm 139:13-18",
+  "Psalm 143:5-12",
+  "Psalm 145:8-13",
+  "Psalm 146:5-10",
+  "Isaiah 9:2-7",
+  "Isaiah 11:1-9",
+  "Isaiah 12:1-6",
+  "Isaiah 25:1-9",
+  "Isaiah 26:3-9",
+  "Isaiah 30:18-21",
+  "Isaiah 32:1-2",
+  "Isaiah 33:17-22",
+  "Isaiah 35:1-10",
+  "Isaiah 40:1-5",
+  "Isaiah 40:9-11",
+  "Isaiah 40:28-31",
+  "Isaiah 41:8-13",
+  "Isaiah 41:17-20",
+  "Isaiah 42:5-9",
+  "Isaiah 43:1-7",
+  "Isaiah 43:16-21",
+  "Isaiah 44:1-5",
+  "Isaiah 44:21-23",
+  "Isaiah 45:22-25",
+  "Isaiah 49:13-16",
+  "Isaiah 51:3-6",
+  "Isaiah 51:11-16",
+  "Isaiah 52:7-10",
+  "Isaiah 54:4-10",
+  "Isaiah 55:1-7",
+  "Isaiah 55:8-13",
+  "Isaiah 57:14-19",
+  "Isaiah 58:6-12",
+  "Isaiah 60:1-5",
+  "Isaiah 60:18-22",
+  "Isaiah 61:1-4",
+  "Isaiah 61:10-11",
+  "Isaiah 62:1-5",
+  "Isaiah 63:7-9",
+  "Isaiah 65:17-19",
+  "Isaiah 65:20-25",
+  "Isaiah 66:12-14",
+  "Isaiah 66:18-23",
+  "Matthew 4:23-25",
+  "Matthew 5:1-12",
+  "Matthew 5:13-16",
+  "Matthew 5:38-48",
+  "Matthew 6:5-13",
+  "Matthew 6:19-24",
+  "Matthew 6:25-34",
+  "Matthew 7:7-11",
+  "Matthew 7:24-29",
+  "Matthew 8:1-4",
+  "Matthew 8:5-13",
+  "Matthew 8:23-27",
+  "Matthew 9:9-13",
+  "Matthew 9:18-26",
+  "Matthew 9:35-38",
+  "Matthew 11:25-30",
+  "Matthew 12:15-21",
+  "Matthew 13:1-9",
+  "Matthew 13:18-23",
+  "Matthew 13:31-33",
+  "Matthew 14:13-21",
+  "Matthew 14:22-33",
+  "Matthew 15:29-31",
+  "Matthew 16:13-20",
+  "Matthew 17:1-9",
+  "Matthew 18:1-5",
+  "Matthew 18:12-20",
+  "Matthew 19:13-15",
+  "Matthew 20:29-34",
+  "Matthew 21:1-9",
+  "Matthew 22:34-40",
+  "Matthew 23:37-39",
+  "Matthew 25:31-40",
+  "Matthew 26:26-29",
+  "Matthew 28:1-10",
+  "Matthew 28:16-20",
+  "Mark 1:14-20",
+  "Mark 1:29-34",
+  "Mark 1:35-39",
+  "Mark 2:1-12",
+  "Mark 2:13-17",
+  "Mark 4:1-9",
+  "Mark 4:26-32",
+  "Mark 4:35-41",
+  "Mark 5:21-34",
+  "Mark 5:35-43",
+  "Mark 6:30-44",
+  "Mark 6:45-52",
+  "Mark 7:31-37",
+  "Mark 8:1-9",
+  "Mark 9:2-8",
+  "Mark 9:33-37",
+  "Mark 10:13-16",
+  "Mark 10:35-45",
+  "Mark 10:46-52",
+  "Mark 12:28-34",
+  "Luke 1:46-55",
+  "Luke 1:68-79",
+  "Luke 2:8-14",
+  "Luke 2:25-32",
+  "Luke 3:21-22",
+  "Luke 4:16-21",
+  "Luke 4:38-44",
+  "Luke 5:1-11",
+  "Luke 5:12-16",
+  "Luke 6:20-26",
+  "Luke 6:27-36",
+  "Luke 6:37-42",
+  "Luke 7:11-17",
+  "Luke 7:36-50",
+  "Luke 8:1-3",
+  "Luke 8:22-25",
+  "Luke 8:40-48",
+  "Luke 9:10-17",
+  "Luke 9:28-36",
+  "Luke 10:1-9",
+  "Luke 10:17-24",
+  "Luke 10:25-37",
+  "Luke 11:9-13",
+  "Luke 12:22-32",
+  "Luke 13:10-17",
+  "Luke 15:1-7",
+  "Luke 15:8-10",
+  "Luke 15:11-24",
+  "Luke 18:1-8",
+  "Luke 19:1-10",
+  "John 1:1-5",
+  "John 1:14-18",
+  "John 2:1-11",
+  "John 3:1-8",
+  "John 3:16-21",
+  "John 4:5-14",
+  "John 4:27-42",
+  "John 5:1-9",
+  "John 6:35-40",
+  "John 6:47-58",
+  "John 7:37-39",
+  "John 8:12-20",
+  "John 8:31-36",
+  "John 9:1-7",
+  "John 10:7-16",
+  "John 10:27-30",
+  "John 11:17-27",
+  "John 11:32-44",
+  "John 12:20-26",
+  "John 13:1-15",
+  "John 13:34-35",
+  "John 14:1-7",
+  "John 14:15-21",
+  "John 14:25-27",
+  "Acts 2:42-47",
+  "Acts 3:1-10",
+  "Acts 4:23-31",
+  "Acts 9:1-9",
+  "Acts 9:10-19",
+  "Acts 10:34-43",
+  "Acts 11:19-24",
+  "Acts 12:5-17",
+  "Acts 16:6-10",
+  "Acts 16:25-34",
+  "Acts 20:32-35",
+  "Acts 27:21-26",
+  "Acts 28:1-10",
+  "Romans 5:1-5",
+  "Romans 5:6-11",
+  "Romans 8:1-4",
+  "Romans 8:14-17",
+  "Romans 8:18-25",
+  "Romans 8:26-30",
+  "Romans 8:31-39",
+  "Romans 12:9-13",
+  "Romans 12:14-21",
+  "Romans 13:11-14",
+  "Romans 15:1-6",
+  "Romans 15:13",
+  "1 Corinthians 1:3-9",
+  "1 Corinthians 2:9-12",
+  "1 Corinthians 3:16-17",
+  "1 Corinthians 13:1-13",
+  "1 Corinthians 15:20-26",
+  "1 Corinthians 15:50-58",
+  "2 Corinthians 1:3-7",
+  "2 Corinthians 3:16-18",
+  "2 Corinthians 4:6-10",
+  "2 Corinthians 4:16-18",
+  "2 Corinthians 5:14-21",
+  "2 Corinthians 6:16-18",
+  "2 Corinthians 12:7-10",
+  "Galatians 2:19-21",
+  "Galatians 5:22-26",
+  "Ephesians 1:3-10",
+  "Ephesians 1:17-23",
+  "Ephesians 2:1-7",
+  "Ephesians 2:13-18",
+  "Ephesians 3:14-21",
+  "Ephesians 4:1-6",
+  "Ephesians 4:31-32",
+  "Ephesians 5:1-2",
+  "Ephesians 6:10-18",
+  "Philippians 1:3-11",
+  "Philippians 1:20-26",
+  "Philippians 2:1-11",
+  "Philippians 2:12-18",
+  "Philippians 3:7-14",
+  "Philippians 4:4-9",
+  "Philippians 4:10-13",
+  "Colossians 1:9-14",
+  "Colossians 1:15-20",
+  "Colossians 2:6-10",
+  "Colossians 3:1-4",
+  "Colossians 3:12-17",
+  "1 Thessalonians 3:9-13",
+  "1 Thessalonians 4:13-18",
+  "1 Thessalonians 5:4-11",
+  "1 Thessalonians 5:12-24",
+  "2 Thessalonians 2:13-17",
+  "2 Thessalonians 3:3-5",
+  "1 Timothy 1:12-17",
+  "1 Timothy 4:12-16",
+  "1 Timothy 6:11-16",
+  "2 Timothy 1:6-14",
+  "2 Timothy 2:1-7",
+  "2 Timothy 3:14-17",
+  "Titus 2:11-14",
+  "Titus 3:4-7",
+  "Philemon 4-7",
+  "Hebrews 2:9-15",
+  "Hebrews 4:14-16",
+  "Hebrews 6:17-20",
+  "Hebrews 10:19-25",
+  "Hebrews 11:1-3",
+  "Hebrews 11:8-16",
+  "Hebrews 11:32-40",
+  "Hebrews 12:1-3",
+  "Hebrews 12:12-15",
+  "Hebrews 13:1-6",
+  "James 1:2-5",
+  "James 1:16-18",
+  "James 3:13-18",
+  "James 5:13-16",
+  "1 Peter 1:3-9",
+  "1 Peter 2:4-10",
+  "1 Peter 3:8-12",
+  "1 Peter 4:8-11",
+  "1 Peter 5:6-11",
+  "2 Peter 1:3-8",
+  "2 Peter 1:16-21",
+  "1 John 1:5-9",
+  "1 John 3:1-3",
+  "1 John 3:16-20",
+  "1 John 4:7-12",
+  "1 John 4:16-19",
+  "1 John 5:1-5",
+  "2 John 5-8",
+  "3 John 2-6",
+  "Jude 20-25",
+  "Revelation 1:12-18",
+  "Revelation 4:1-6",
+  "Revelation 5:8-14",
+  "Revelation 7:9-17",
+  "Revelation 12:10-12",
+  "Revelation 19:1-9",
+  "Revelation 21:1-5",
+  "Revelation 21:22-27",
+  "Revelation 22:1-5",
+  "Revelation 22:16-21",
+];
+
+const SCRIPTURE_SEED_PLAN = SCRIPTURE_SEED_REFERENCES.map((reference, index) => ({
+  reference: `${reference} (ESV)`,
+  focus: SCRIPTURE_FOCUS_ROTATION[index % SCRIPTURE_FOCUS_ROTATION.length],
+}));
+
+function getDayOfYearIndex(dateISO) {
+  if (!dateISO) return 0;
+  const parts = dateISO.split("-").map((part) => Number(part));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return 0;
+  const [year, month, day] = parts;
+  const target = Date.UTC(year, month - 1, day);
+  const start = Date.UTC(year, 0, 1);
+  return Math.floor((target - start) / 86400000);
+}
+
+function getRosaryMysteryForDate(dateISO) {
+  if (!dateISO) return null;
+  const target = new Date(`${dateISO}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const dayOfWeek = target.getDay();
+  const key = ROSARY_SCHEDULE[dayOfWeek];
+  if (!key) return null;
+  const base = ROSARY_MYSTERIES[key];
+  if (!base) return null;
+  return { ...base, dayName: ROSARY_DAY_NAMES[dayOfWeek] };
+}
+
+function getScriptureSeedSuggestion(dateISO) {
+  if (!dateISO) return null;
+  const index = getDayOfYearIndex(dateISO);
+  if (Number.isNaN(index)) return null;
+  return SCRIPTURE_SEED_PLAN[index % SCRIPTURE_SEED_PLAN.length];
+}
+
 const LECTIO_PROMPTS = [
   "Read slowly and notice a word or phrase that shimmers.",
   "Listen for Christ speaking the passage directly to you.",
@@ -926,6 +1420,8 @@ function App() {
     () => PRACTICE_SPOTLIGHTS[preferences.spotlightIndex % PRACTICE_SPOTLIGHTS.length],
     [preferences.spotlightIndex],
   );
+  const rosaryMystery = useMemo(() => getRosaryMysteryForDate(date), [date]);
+  const scriptureSuggestion = useMemo(() => getScriptureSeedSuggestion(date), [date]);
 
   const cycleSpotlight = useCallback(() => {
     updatePreferences((prev) => ({
@@ -1000,7 +1496,16 @@ function App() {
         <div className="grid md:grid-cols-3 gap-6">
           <Card title="Morning">
             <ToggleRow
-              label="Consecration (Offering the day)"
+              label={
+                <a
+                  href={MARIAN_CONSECRATION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                >
+                  Consecration to the Virgin Mary
+                </a>
+              }
               checked={d.morning.consecration}
               onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, consecration: v } }))}
             />
@@ -1026,7 +1531,23 @@ function App() {
               onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, stillness: v } }))}
             />
             <ToggleRow
-              label="Body Blessing"
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="cursor-help underline decoration-dotted underline-offset-2"
+                    title={BODY_BLESSING_TOOLTIP}
+                  >
+                    Body Blessing
+                  </span>
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                    title={BODY_BLESSING_TOOLTIP}
+                    aria-hidden="true"
+                  >
+                    ?
+                  </span>
+                </span>
+              }
               checked={d.midday.bodyBlessing}
               onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, bodyBlessing: v } }))}
             />
@@ -1052,6 +1573,7 @@ function App() {
               max={5}
               onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))}
             />
+            <RosaryMysteryNote mystery={rosaryMystery} />
             <ToggleRow
               label="Silence Before Sleep"
               checked={d.evening.nightSilence}
@@ -1069,6 +1591,7 @@ function App() {
               className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="E.g., ‘Blessed are the pure in heart…’ (Matt 5:8)"
             />
+            <ScriptureSeedSuggestion suggestion={scriptureSuggestion} />
             {preferences.showGuidedPrompts && (
               <GuidedPrompt title="Lectio divina prompt" prompts={LECTIO_PROMPTS} />
             )}
@@ -1782,6 +2305,37 @@ function ToggleRow({ label, checked, onChange }) {
         className="h-5 w-5 accent-emerald-600"
       />
     </label>
+  );
+}
+
+function RosaryMysteryNote({ mystery }) {
+  if (!mystery) return null;
+  return (
+    <div className="mt-2 space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold">{mystery.title}</span>
+        <span className="text-[0.7rem] font-medium uppercase tracking-wide text-emerald-500 dark:text-emerald-300">
+          {mystery.dayName}
+        </span>
+      </div>
+      <p className="italic">{mystery.meditation}</p>
+      <ul className="list-disc space-y-1 pl-5">
+        {mystery.decades.map((decade) => (
+          <li key={decade}>{decade}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ScriptureSeedSuggestion({ suggestion }) {
+  if (!suggestion) return null;
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+      <div className="text-sm font-semibold">Suggested reading</div>
+      <div className="mt-1 font-medium">{suggestion.reference}</div>
+      <p className="mt-1 italic">{suggestion.focus}</p>
+    </div>
   );
 }
 
