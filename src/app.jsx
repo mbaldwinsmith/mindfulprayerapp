@@ -470,7 +470,7 @@ function TemptationBox({ date, d, setDay }) {
   return (
     <div className="grid gap-2">
       <h3 className="text-sm font-medium">Temptation Tracker</h3>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         <SmallCounter
           label="Urges Noted"
           value={t.urgesNoted}
@@ -511,9 +511,9 @@ function TemptationBox({ date, d, setDay }) {
 
 function SmallCounter({ label, value, onChange }) {
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-2 flex items-center justify-between">
-      <span className="text-xs">{label}</span>
-      <div className="flex items-center gap-1">
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-2 flex flex-col gap-2">
+      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200">{label}</span>
+      <div className="flex items-center justify-center gap-2">
         <button className="btn sm:!px-2" onClick={() => onChange(Math.max(0, value - 1))}>
           −
         </button>
