@@ -32,15 +32,14 @@
     const { useEffect, useMemo, useRef, useState } = React;
 
     const STORE_KEY = "zc_tracker_v1";
-    const PIN_KEY = "zc_pin_v1";
+    const PIN_KEY   = "zc_pin_v1";
     const THEME_KEY = "zc_theme";
+
 
 
     const todayISO = () => new Date().toISOString().slice(0, 10);
     const ymd = (d) => d.toISOString().slice(0, 10);
     const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-
-    const STORE_KEY = "zc_tracker_v1";
 
     // Export current data blob as JSON download
     function exportDataJSON(data) {
