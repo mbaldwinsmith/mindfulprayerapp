@@ -490,7 +490,7 @@ function Card({ title, children }) {
 
 function ToggleRow({ label, checked, onChange }) {
   return (
-    <label className="flex items-center justify-between gap-3">
+    <label className="flex items-center justify-between gap-3 pr-2">
       <span>{label}</span>
       <input
         type="checkbox"
@@ -504,7 +504,7 @@ function ToggleRow({ label, checked, onChange }) {
 
 function CounterRow({ label, value, onChange }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3 pr-2">
       <span>{label}</span>
       <div className="flex items-center gap-2">
         <button className="btn" onClick={() => onChange(Math.max(0, value - 10))}>
@@ -527,7 +527,7 @@ function CounterRow({ label, value, onChange }) {
 
 function StepperRow({ label, value, min, max, onChange }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3 pr-2">
       <span>{label}</span>
       <div className="flex items-center gap-2">
         <button className="btn" onClick={() => onChange(Math.max(min, value - 1))}>
@@ -544,7 +544,7 @@ function StepperRow({ label, value, min, max, onChange }) {
 
 function TimerRow({ label, minutes, onChange }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 pr-2">
       <div className="flex items-center justify-between">
         <span>{label}</span>
         <span className="text-xs text-zinc-500">

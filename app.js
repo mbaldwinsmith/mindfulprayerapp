@@ -533,7 +533,7 @@ function ToggleRow({
   onChange
 }) {
   return /*#__PURE__*/React.createElement("label", {
-    className: "flex items-center justify-between gap-3"
+    className: "flex items-center justify-between gap-3 pr-2"
   }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
     checked: checked,
@@ -547,7 +547,7 @@ function CounterRow({
   onChange
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-3"
+    className: "flex items-center justify-between gap-3 pr-2"
   }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
@@ -574,7 +574,7 @@ function StepperRow({
   onChange
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-3"
+    className: "flex items-center justify-between gap-3 pr-2"
   }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
@@ -593,7 +593,7 @@ function TimerRow({
   onChange
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-2"
+    className: "flex flex-col gap-2 pr-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("span", {
