@@ -42,6 +42,90 @@ const blankDay = date => ({
   }
 });
 const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
+const SUM_AGGREGATE = {
+  init: () => 0,
+  accumulate: (acc, value) => acc + value,
+  finalize: acc => acc
+};
+const METRIC_OPTIONS = [{
+  value: "breathMinutes",
+  label: "Breath meditation (min)",
+  accessor: day => day.morning.breathMinutes || 0,
+  unit: "min",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "jesusPrayerCount",
+  label: "Jesus Prayer (count)",
+  accessor: day => day.morning.jesusPrayerCount || 0,
+  unit: "count",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "rosaryDecades",
+  label: "Rosary decades",
+  accessor: day => day.evening.rosaryDecades || 0,
+  unit: "decades",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "urgesNoted",
+  label: "Urges noted",
+  accessor: day => day.temptations.urgesNoted || 0,
+  unit: "count",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "victories",
+  label: "Victories over urges",
+  accessor: day => day.temptations.victories || 0,
+  unit: "count",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "lapses",
+  label: "Lapses",
+  accessor: day => day.temptations.lapses || 0,
+  unit: "count",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "morningConsecration",
+  label: "Morning consecration",
+  accessor: day => day.morning.consecration ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "middayStillness",
+  label: "Midday stillness pause",
+  accessor: day => day.midday.stillness ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "bodyBlessing",
+  label: "Body blessing",
+  accessor: day => day.midday.bodyBlessing ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "eveningExamen",
+  label: "Evening examen",
+  accessor: day => day.evening.examen ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}, {
+  value: "nightSilence",
+  label: "Silence before sleep",
+  accessor: day => day.evening.nightSilence ? 1 : 0,
+  unit: "",
+  weeklyUnit: "days",
+  aggregate: SUM_AGGREGATE
+}];
+const METRIC_VIEW_OPTIONS = [{
+  value: "daily",
+  label: "Daily"
+}, {
+  value: "weekly",
+  label: "Weekly"
+}];
 const normalizeDay = (input = {}) => ({
   date: input.date || todayISO(),
   scripture: input.scripture ?? "",
@@ -195,11 +279,17 @@ function App() {
     updatePIN
   } = usePIN();
   const [date, setDate] = useState(todayISO());
+  const [selectedMetric, setSelectedMetric] = useState(METRIC_OPTIONS[0].value);
+  const [metricView, setMetricView] = useState("daily");
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
   const longestStreak = useMemo(() => calcLongestStreak(data), [data]);
   const totals = useMemo(() => calcTotals(data), [data]);
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
+  const metricConfig = useMemo(() => METRIC_OPTIONS.find(opt => opt.value === selectedMetric) ?? METRIC_OPTIONS[0], [selectedMetric]);
+  const metricSeries = useMemo(() => buildMetricSeries(data, selectedMetric), [data, selectedMetric]);
+  const displayedMetricSeries = metricView === "weekly" ? metricSeries.weekly : metricSeries.daily;
+  const metricSummary = useMemo(() => computeMetricSummary(metricSeries, metricView), [metricSeries, metricView]);
   const weekStartLabel = useMemo(() => {
     const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
     if (!startDate || Number.isNaN(startDate.getTime())) return "--";
@@ -407,7 +497,15 @@ function App() {
     }, k), /*#__PURE__*/React.createElement("span", {
       className: "text-xs font-medium " + (complete ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-500 dark:text-zinc-400")
     }, complete ? "Completed" : "Pending"));
-  }))))), /*#__PURE__*/React.createElement(Card, {
+  }))))), /*#__PURE__*/React.createElement(MetricTrendsCard, {
+    selectedMetric: selectedMetric,
+    setSelectedMetric: setSelectedMetric,
+    metricView: metricView,
+    setMetricView: setMetricView,
+    series: displayedMetricSeries,
+    summary: metricSummary,
+    metricConfig: metricConfig
+  }), /*#__PURE__*/React.createElement(Card, {
     title: "Stats"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm grid gap-4"
@@ -514,6 +612,142 @@ function App() {
   }), /*#__PURE__*/React.createElement("footer", {
     className: "pt-2 pb-8 text-center text-xs text-zinc-500 dark:text-zinc-400"
   }, "Built for Mark \u2014 \u201Csee clearly, return gently, offer everything to Christ.\u201D")));
+}
+function MetricTrendsCard({
+  selectedMetric,
+  setSelectedMetric,
+  metricView,
+  setMetricView,
+  series,
+  summary,
+  metricConfig
+}) {
+  const unit = metricView === "weekly" ? metricConfig.weeklyUnit ?? metricConfig.unit : metricConfig.unit;
+  const latestLabel = metricView === "weekly" ? "Latest week" : "Latest day";
+  const averageLabel = summary.averageLabel ?? (metricView === "weekly" ? "4-week avg" : "7-day avg");
+  const latestDisplay = formatMetricValue(summary.lastValue);
+  const averageDisplay = formatMetricValue(summary.averageValue);
+  return /*#__PURE__*/React.createElement(Card, {
+    title: "Practice Trends"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
+  }, "Metric"), /*#__PURE__*/React.createElement("select", {
+    value: selectedMetric,
+    onChange: e => setSelectedMetric(e.target.value),
+    className: "rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 text-sm",
+    "aria-label": "Select metric to visualize"
+  }, METRIC_OPTIONS.map(option => /*#__PURE__*/React.createElement("option", {
+    key: option.value,
+    value: option.value
+  }, option.label))), /*#__PURE__*/React.createElement("div", {
+    className: "ml-auto inline-flex items-center overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800"
+  }, METRIC_VIEW_OPTIONS.map(option => /*#__PURE__*/React.createElement("button", {
+    key: option.value,
+    type: "button",
+    onClick: () => setMetricView(option.value),
+    className: "px-2 py-1 text-xs font-medium uppercase tracking-wide transition " + (metricView === option.value ? "bg-emerald-500 text-white" : "bg-transparent text-zinc-600 dark:text-zinc-300"),
+    "aria-pressed": metricView === option.value
+  }, option.label)))), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1 text-xs text-zinc-500 dark:text-zinc-400"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between text-sm text-zinc-600 dark:text-zinc-200"
+  }, /*#__PURE__*/React.createElement("span", null, latestLabel), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold text-zinc-800 dark:text-zinc-100"
+  }, latestDisplay, summary.lastValue != null && unit ? " " + unit : "")), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between text-sm text-zinc-600 dark:text-zinc-200"
+  }, /*#__PURE__*/React.createElement("span", null, averageLabel), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-medium text-zinc-800 dark:text-zinc-100"
+  }, averageDisplay, summary.averageValue != null && unit ? " " + unit : ""))), /*#__PURE__*/React.createElement(MetricSparkline, {
+    series: series,
+    view: metricView,
+    metricLabel: metricConfig.label
+  }));
+}
+function MetricSparkline({
+  series,
+  view,
+  metricLabel
+}) {
+  if (!series.length) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "h-40 grid place-items-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/40 dark:bg-zinc-900/40 px-4 text-center text-xs text-zinc-500 dark:text-zinc-400"
+    }, "Start logging ", metricLabel.toLowerCase(), " to see this trend.");
+  }
+  if (series.length < 2) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "h-40 grid place-items-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/40 dark:bg-zinc-900/40 px-4 text-center text-xs text-zinc-500 dark:text-zinc-400"
+    }, "Add one more ", view === "weekly" ? "week" : "day", " of data to view the chart.");
+  }
+  const values = series.map(point => point.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || 1;
+  const points = series.map((point, index) => {
+    const x = index / (series.length - 1) * 100;
+    const y = 100 - (point.value - minValue) / range * 100;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const areaPoints = ["0,100", ...points, "100,100"].join(" ");
+  const firstLabel = formatSeriesLabel(series[0], view, "start");
+  const lastLabel = formatSeriesLabel(series[series.length - 1], view, "end");
+  const gradientId = `metric-sparkline-${view}`;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 100 100",
+    preserveAspectRatio: "none",
+    className: "h-40 w-full text-emerald-500 dark:text-emerald-400"
+  }, /*#__PURE__*/React.createElement("polygon", {
+    points: areaPoints,
+    fill: `url(#${gradientId})`,
+    opacity: "0.4"
+  }), /*#__PURE__*/React.createElement("polyline", {
+    points: points.join(" "),
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.5"
+  }), /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("linearGradient", {
+    id: gradientId,
+    x1: "0",
+    y1: "0",
+    x2: "0",
+    y2: "1"
+  }, /*#__PURE__*/React.createElement("stop", {
+    offset: "0%",
+    stopColor: "currentColor",
+    stopOpacity: "0.45"
+  }), /*#__PURE__*/React.createElement("stop", {
+    offset: "100%",
+    stopColor: "currentColor",
+    stopOpacity: "0.05"
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-1 flex items-center justify-between text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
+  }, /*#__PURE__*/React.createElement("span", null, firstLabel), /*#__PURE__*/React.createElement("span", null, lastLabel)));
+}
+function formatSeriesLabel(point, view, position) {
+  if (!point) return "--";
+  if (view === "weekly") {
+    const targetISO = position === "end" ? point.end ?? addDaysISO(point.date, 6) : point.date;
+    const target = new Date(targetISO);
+    if (Number.isNaN(target.getTime())) return "--";
+    return target.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric"
+    });
+  }
+  const date = new Date(point.date);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric"
+  });
+}
+function formatMetricValue(value) {
+  if (value == null || Number.isNaN(value)) return "—";
+  if (Number.isInteger(value)) return value.toLocaleString();
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 1
+  });
 }
 function Card({
   title,
@@ -962,6 +1196,99 @@ function LockScreen({
   }, "Unlock"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500 mt-2"
   }, "Tip: You can remove the PIN later from the header menu.")));
+}
+function buildMetricSeries(data, metricKey) {
+  const metric = METRIC_OPTIONS.find(option => option.value === metricKey);
+  if (!metric) return {
+    daily: [],
+    weekly: []
+  };
+  const entries = Object.keys(data).sort();
+  if (entries.length === 0) {
+    return {
+      daily: [],
+      weekly: []
+    };
+  }
+  const first = new Date(entries[0]);
+  const last = new Date(entries[entries.length - 1]);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime())) {
+    return {
+      daily: [],
+      weekly: []
+    };
+  }
+  const accessor = metric.accessor;
+  const daily = [];
+  const cursor = new Date(first);
+  while (cursor <= last) {
+    const key = ymd(cursor);
+    const day = data[key] ? normalizeDay(data[key]) : blankDay(key);
+    const rawValue = accessor(day);
+    const value = typeof rawValue === "number" && !Number.isNaN(rawValue) ? rawValue : 0;
+    daily.push({
+      date: key,
+      value
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const aggregate = metric.aggregate ?? SUM_AGGREGATE;
+  const weeklyMap = new Map();
+  for (const point of daily) {
+    const weekKey = weekStartISO(point.date);
+    if (!weeklyMap.has(weekKey)) {
+      weeklyMap.set(weekKey, {
+        value: aggregate.init(),
+        count: 0
+      });
+    }
+    const group = weeklyMap.get(weekKey);
+    group.value = aggregate.accumulate(group.value, point.value);
+    group.count += 1;
+  }
+  const weekly = Array.from(weeklyMap.entries()).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([start, group]) => ({
+    date: start,
+    end: addDaysISO(start, 6),
+    value: aggregate.finalize ? aggregate.finalize(group.value, group.count) : group.value
+  }));
+  return {
+    daily,
+    weekly
+  };
+}
+function computeMetricSummary(series, view) {
+  const points = view === "weekly" ? series.weekly : series.daily;
+  const defaultLabel = view === "weekly" ? "4-week avg" : "7-day avg";
+  if (!points.length) {
+    return {
+      lastValue: null,
+      averageValue: null,
+      averageLabel: defaultLabel
+    };
+  }
+  const windowSize = view === "weekly" ? 4 : 7;
+  const windowPoints = points.slice(-windowSize);
+  const averageValue = windowPoints.reduce((acc, point) => acc + point.value, 0) / windowPoints.length;
+  const averageLabel = `${windowPoints.length}-${view === "weekly" ? "week" : "day"} avg`;
+  return {
+    lastValue: points[points.length - 1].value,
+    lastDate: points[points.length - 1].date,
+    averageValue,
+    averageLabel
+  };
+}
+function weekStartISO(dateISO) {
+  const date = new Date(dateISO);
+  if (Number.isNaN(date.getTime())) return dateISO;
+  const diff = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  return ymd(date);
+}
+function addDaysISO(dateISO, days) {
+  const date = new Date(dateISO);
+  if (Number.isNaN(date.getTime())) return dateISO;
+  date.setDate(date.getDate() + days);
+  return ymd(date);
 }
 function anyPracticeDone(day) {
   if (!day) return false;
