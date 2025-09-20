@@ -66,7 +66,15 @@ const blankDay = (date) => ({
   midday: { stillness: false, bodyBlessing: false },
   evening: { examen: false, rosaryDecades: 0, nightSilence: false },
   temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
-  weekly: { mass: false, confession: false, fasting: false, accountability: false },
+  weekly: {
+    mass: false,
+    confession: false,
+    fasting: false,
+    accountability: false,
+    sabbath: false,
+    service: false,
+    direction: false,
+  },
   mood: "",
   contextTags: [],
   customMetrics: {},
@@ -116,7 +124,22 @@ async function decryptJSON(key, payload) {
   return JSON.parse(text);
 }
 
-const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
+const WEEKLY_ANCHORS = [
+  { key: "mass", label: "Sunday Mass" },
+  { key: "confession", label: "Confession" },
+  { key: "fasting", label: "Fasting / abstinence" },
+  { key: "accountability", label: "Accountability check-in" },
+  { key: "sabbath", label: "Sabbath rest" },
+  { key: "service", label: "Service / mercy outreach" },
+  { key: "direction", label: "Spiritual direction check-in" },
+];
+
+const WEEKLY_ANCHOR_LABELS = WEEKLY_ANCHORS.reduce((acc, anchor) => {
+  acc[anchor.key] = anchor.label;
+  return acc;
+}, {});
+
+const WEEKLY_ANCHOR_KEYS = WEEKLY_ANCHORS.map((anchor) => anchor.key);
 
 const MOOD_OPTIONS = [
   { value: "joyful", label: "Joyful", emoji: "😊" },
@@ -368,11 +391,76 @@ const normalizeDay = (input = {}) => ({
     confession: input.weekly?.confession ?? false,
     fasting: input.weekly?.fasting ?? false,
     accountability: input.weekly?.accountability ?? false,
+    sabbath: input.weekly?.sabbath ?? false,
+    service: input.weekly?.service ?? false,
+    direction: input.weekly?.direction ?? false,
   },
   mood: input.mood ?? "",
   contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
   customMetrics: input.customMetrics ?? {},
 });
+
+function dayHasActivity(day) {
+  if (!day) return false;
+  if (typeof day.scripture === "string" && day.scripture.trim()) return true;
+  if (typeof day.notes === "string" && day.notes.trim()) return true;
+  if (Array.isArray(day.contextTags) && day.contextTags.some((tag) => String(tag || "").trim())) return true;
+  if (day.mood) return true;
+  if (day.morning?.consecration) return true;
+  if ((day.morning?.breathMinutes || 0) > 0) return true;
+  if ((day.morning?.jesusPrayerCount || 0) > 0) return true;
+  if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
+  if (day.evening?.examen || day.evening?.nightSilence) return true;
+  if ((day.evening?.rosaryDecades || 0) > 0) return true;
+  if ((day.temptations?.urgesNoted || 0) > 0) return true;
+  if ((day.temptations?.victories || 0) > 0) return true;
+  if ((day.temptations?.lapses || 0) > 0) return true;
+  if (WEEKLY_ANCHOR_KEYS.some((key) => day.weekly?.[key])) return true;
+  if (day.customMetrics && typeof day.customMetrics === "object") {
+    for (const value of Object.values(day.customMetrics)) {
+      const numeric = typeof value === "number" ? value : Number(value);
+      if (Number.isFinite(numeric) && Math.abs(numeric) > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function collectRecentEntries(data, { tag = "", limit = 10 } = {}) {
+  if (!data) return { entries: [], totalMatching: 0 };
+  const normalizedTag = typeof tag === "string" ? tag.trim() : "";
+  const keys = Object.keys(data || {})
+    .filter(Boolean)
+    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  const max = Number.isFinite(limit) && limit > 0 ? limit : Infinity;
+  const entries = [];
+  let totalMatching = 0;
+
+  keys.forEach((key) => {
+    const raw = data[key];
+    if (!raw) return;
+    const normalized = normalizeDay({ ...raw, date: key });
+    if (!dayHasActivity(normalized)) return;
+    if (normalizedTag && !normalized.contextTags.includes(normalizedTag)) return;
+    totalMatching += 1;
+    if (entries.length < max) {
+      entries.push(normalized);
+    }
+  });
+
+  return { entries, totalMatching };
+}
+
+function truncateText(value, maxLength = 120) {
+  if (value == null) return "";
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
 
 function exportDataJSON(data) {
   try {
@@ -769,6 +857,9 @@ function App() {
   }, [preferences.customMetrics]);
   const [selectedMetric, setSelectedMetric] = useState(() => metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
   const [metricView, setMetricView] = useState("daily");
+  const [historyTag, setHistoryTag] = useState("");
+
+  const historyLimit = 10;
 
   useEffect(() => {
     if (!metricOptions.some((option) => option.value === selectedMetric)) {
@@ -798,6 +889,12 @@ function App() {
     () => computeMetricHighlights(metricSeries, metricConfig, metricView),
     [metricSeries, metricConfig, metricView],
   );
+  const historyEntries = useMemo(
+    () => collectRecentEntries(data, { tag: historyTag, limit: historyLimit }),
+    [data, historyTag],
+  );
+  const recentEntries = historyEntries.entries;
+  const historyCount = historyEntries.totalMatching;
   const weekStartLabel = useMemo(() => {
     const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
     if (!startDate || Number.isNaN(startDate.getTime())) return "--";
@@ -813,6 +910,12 @@ function App() {
     [data, preferences.customMetrics],
   );
   const tagSummary = useMemo(() => summarizeTags(data), [data]);
+  useEffect(() => {
+    if (!historyTag) return;
+    if (!tagSummary.some(([tag]) => tag === historyTag)) {
+      setHistoryTag("");
+    }
+  }, [historyTag, tagSummary]);
   const moodSummary = useMemo(() => summarizeMood(data), [data]);
   const latestMoodMeta = useMemo(() => getMoodMeta(moodSummary.latest?.mood), [moodSummary]);
   const { activeReminder, markReminderDone, snoozeReminder, requestNotifications } = useReminders(
@@ -830,6 +933,17 @@ function App() {
     }));
   }, [updatePreferences]);
 
+  const jumpToDate = useCallback(
+    (targetDate) => {
+      if (!targetDate) return;
+      setDate(targetDate);
+      if (typeof window !== "undefined" && window.scrollTo) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    },
+    [setDate],
+  );
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "ArrowLeft") setDate(prevDay(date, -1));
@@ -842,35 +956,41 @@ function App() {
   if (!unlocked) return <LockScreen tryUnlock={tryUnlock} />;
 
   return (
-    <div className="min-h-screen">
-      {!preferences.onboardingComplete && (
-        <OnboardingDialog onComplete={() => updatePreferences({ onboardingComplete: true })} />
-      )}
-      <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3">
-          <img
-            src={BRUSHSTROKE_CROSS}
-            alt="Mindfulness and Prayer Tracker logo"
-            className="h-10 w-10 shrink-0"
-            width="40"
-            height="40"
-            loading="lazy"
-          />
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Mindfulness and Prayer Tracker</h1>
-          <span className="ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-            <button
-              className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              title="Toggle theme"
-            >
-              {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
-            </button>
-            <PinMenu hasPIN={hasPIN} updatePIN={updatePIN} />
-          </span>
-        </div>
-      </header>
+    <div className="app-shell">
+      <div className="relative z-10 flex min-h-screen flex-col">
+        {!preferences.onboardingComplete && (
+          <OnboardingDialog onComplete={() => updatePreferences({ onboardingComplete: true })} />
+        )}
+        <header className="sticky top-0 z-30 pt-4 pb-2">
+          <div className="mx-auto max-w-5xl px-4">
+            <div className="flex items-center gap-4 rounded-3xl border border-white/60 bg-white/75 px-5 py-4 shadow-lg shadow-emerald-500/20 backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+              <img
+                src={BRUSHSTROKE_CROSS}
+                alt="Mindfulness and Prayer Tracker logo"
+                className="h-12 w-12 shrink-0 rounded-2xl border border-white/50 bg-white/70 p-2 shadow-md shadow-emerald-500/10 dark:border-white/10 dark:bg-white/10"
+                width="48"
+                height="48"
+                loading="lazy"
+              />
+              <div className="flex flex-col">
+                <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
+                  Mindfulness and Prayer Tracker
+                </h1>
+                <p className="text-xs text-emerald-600/80 sm:text-sm dark:text-emerald-300/80">
+                  Gentle rhythms for prayer, stillness, and compassion.
+                </p>
+              </div>
+              <div className="ml-auto flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
+                  {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+                </button>
+                <PinMenu hasPIN={hasPIN} updatePIN={updatePIN} />
+              </div>
+            </div>
+          </div>
+        </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 grid gap-6">
+        <main className="relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8">
         <ReminderBanner
           reminder={activeReminder}
           onComplete={markReminderDone}
@@ -1002,11 +1122,11 @@ function App() {
                   </span>
                 </div>
                 <div className="mt-2 grid gap-1">
-                  {WEEKLY_ANCHOR_KEYS.map((k) => {
-                    const complete = weekSummary.anchors[k];
+                  {WEEKLY_ANCHORS.map(({ key, label }) => {
+                    const complete = weekSummary.anchors[key];
                     return (
-                      <div key={k} className="flex items-center justify-between">
-                        <span className="capitalize">{k}</span>
+                      <div key={key} className="flex items-center justify-between">
+                        <span>{label}</span>
                         <span
                           className={
                             "text-xs font-medium " +
@@ -1158,10 +1278,7 @@ function App() {
                     {moodSummary.counts.map(([mood, count]) => {
                       const meta = getMoodMeta(mood);
                       return (
-                        <span
-                          key={mood}
-                          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-1"
-                        >
+                        <span key={mood} className="chip">
                           {meta?.emoji} {meta?.label || mood} · {count}
                         </span>
                       );
@@ -1182,19 +1299,30 @@ function App() {
                   </h3>
                   <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                     {tagSummary.slice(0, 10).map(([tag, count]) => (
-                      <span key={tag} className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5">
+                      <span key={tag} className="chip">
                         #{tag} · {count}
                       </span>
                     ))}
                   </div>
                 </div>
-              ) : null}
-            </div>
-          </Card>
+          ) : null}
+        </div>
+      </Card>
 
-          <Card title="Backup / Restore">
-            <BackupControls data={data} setData={setData} preferences={preferences} updatePreferences={updatePreferences} />
-          </Card>
+      <RecentEntriesCard
+        entries={recentEntries}
+        totalMatching={historyCount}
+        limit={historyLimit}
+        tagSummary={tagSummary}
+        selectedTag={historyTag}
+        onSelectTag={setHistoryTag}
+        onSelectDate={jumpToDate}
+        customMetricDefinitions={preferences.customMetrics}
+      />
+
+      <Card title="Backup / Restore">
+        <BackupControls data={data} setData={setData} preferences={preferences} updatePreferences={updatePreferences} />
+      </Card>
 
           <Card title="Settings & Safety">
             <div className="grid gap-2 text-sm">
@@ -1245,6 +1373,222 @@ function App() {
         </footer>
       </main>
     </div>
+  </div>
+  );
+}
+
+function RecentEntriesCard({
+  entries,
+  totalMatching,
+  limit,
+  tagSummary,
+  selectedTag,
+  onSelectTag,
+  onSelectDate,
+  customMetricDefinitions,
+}) {
+  const tagOptions = useMemo(() => tagSummary.map(([tag, count]) => ({ tag, count })), [tagSummary]);
+  const customMetricMap = useMemo(() => {
+    const map = new Map();
+    (customMetricDefinitions || []).forEach((metric) => {
+      if (metric && metric.id) {
+        map.set(metric.id, metric);
+      }
+    });
+    return map;
+  }, [customMetricDefinitions]);
+  const hasFilter = Boolean(selectedTag);
+  const hasEntries = totalMatching > 0;
+  const showingCount = entries.length;
+  const finiteLimit = Number.isFinite(limit) && limit > 0 ? limit : Infinity;
+  const entryWord = showingCount === 1 ? "entry" : "entries";
+  const filterLabel = hasFilter ? `#${selectedTag} ` : "";
+  let summaryText = hasFilter ? `No ${filterLabel}entries yet` : "No entries yet";
+
+  if (hasEntries) {
+    if (finiteLimit !== Infinity && totalMatching > finiteLimit) {
+      summaryText = `Latest ${showingCount} ${filterLabel}${entryWord} of ${totalMatching}`;
+    } else {
+      summaryText = `${showingCount} ${filterLabel}${entryWord}`;
+    }
+  }
+
+  return (
+    <Card title="Recent reflections">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <label className="flex items-center gap-2">
+          <span>Filter by tag</span>
+          <select
+            value={selectedTag}
+            onChange={(e) => onSelectTag(e.target.value)}
+            disabled={!tagOptions.length}
+            className="rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-xs dark:border-zinc-800"
+            aria-label="Filter history by tag"
+          >
+            <option value="">All tags</option>
+            {tagOptions.map(({ tag, count }) => (
+              <option key={tag} value={tag}>
+                #{tag} · {count}
+              </option>
+            ))}
+          </select>
+        </label>
+        {hasFilter ? (
+          <button type="button" className="btn text-xs px-3 py-1" onClick={() => onSelectTag("")}>
+            Clear filter
+          </button>
+        ) : null}
+        <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">{summaryText}</span>
+      </div>
+
+      <div className="grid gap-3">
+        {hasEntries ? (
+          entries.map((entry) => (
+            <RecentEntryRow
+              key={entry.date}
+              day={entry}
+              onSelectDate={onSelectDate}
+              customMetricMap={customMetricMap}
+            />
+          ))
+        ) : (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {hasFilter
+              ? "Log a reflection with this tag to see it here."
+              : "Once you log prayers or notes, a quick history appears for gentle review."}
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
+  const date = new Date(day.date);
+  const formattedDate = Number.isNaN(date.getTime())
+    ? day.date
+    : date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const dailyFlags = [
+    Boolean(day.morning?.consecration),
+    Boolean(day.midday?.stillness),
+    Boolean(day.midday?.bodyBlessing),
+    Boolean(day.evening?.examen),
+    Boolean(day.evening?.nightSilence),
+  ];
+  const dailyCompleted = dailyFlags.filter(Boolean).length;
+  const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).length;
+  const weeklyCompletedNames = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).map(
+    (key) => WEEKLY_ANCHOR_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1),
+  );
+  const moodMeta = getMoodMeta(day.mood);
+  const moodLabel = moodMeta ? `${moodMeta.emoji} ${moodMeta.label}` : day.mood || "";
+  const highlightParts = [];
+  if ((day.morning?.breathMinutes || 0) > 0)
+    highlightParts.push(`Breath ${day.morning.breathMinutes} min`);
+  if ((day.morning?.jesusPrayerCount || 0) > 0)
+    highlightParts.push(`Jesus Prayer ${day.morning.jesusPrayerCount}`);
+  if ((day.evening?.rosaryDecades || 0) > 0)
+    highlightParts.push(
+      `Rosary ${day.evening.rosaryDecades} decade${day.evening.rosaryDecades === 1 ? "" : "s"}`,
+    );
+  if ((day.temptations?.urgesNoted || 0) > 0)
+    highlightParts.push(`Urges noted ${day.temptations.urgesNoted}`);
+  if ((day.temptations?.victories || 0) > 0)
+    highlightParts.push(`Victories ${day.temptations.victories}`);
+  if ((day.temptations?.lapses || 0) > 0)
+    highlightParts.push(`Lapses ${day.temptations.lapses}`);
+
+  const practiceBadges = [];
+  if (day.morning?.consecration) practiceBadges.push("🌅 Consecration");
+  if (day.midday?.stillness) practiceBadges.push("🕰️ Stillness pause");
+  if (day.midday?.bodyBlessing) practiceBadges.push("🤲 Body blessing");
+  if (day.evening?.examen) practiceBadges.push("🌙 Evening examen");
+  if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
+
+  const customMetricChips = [];
+  if (customMetricMap && customMetricMap.size) {
+    Object.entries(day.customMetrics || {}).forEach(([id, raw]) => {
+      const numeric = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(numeric) || numeric === 0) return;
+      const def = customMetricMap.get(id);
+      const name = def?.name || "Custom";
+      const unit = def?.unit ? ` ${def.unit}` : "";
+      customMetricChips.push({ id, label: `${name}: ${formatMetricValue(numeric)}${unit}` });
+    });
+  }
+
+  const tags = Array.isArray(day.contextTags)
+    ? day.contextTags
+        .map((tag) => String(tag || "").trim())
+        .filter(Boolean)
+    : [];
+
+  const scripturePreview = truncateText(day.scripture, 100);
+  const notesPreview = truncateText(day.notes, 140);
+
+  return (
+    <article className="rounded-2xl border border-white/60 bg-white/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{formattedDate}</span>
+          <span>Daily {dailyCompleted}/5</span>
+          <span>Weekly {weeklyCompleted}/{WEEKLY_ANCHOR_KEYS.length}</span>
+        </div>
+        <button
+          type="button"
+          className="btn ml-auto text-xs px-3 py-1"
+          onClick={() => onSelectDate(day.date)}
+        >
+          Review day
+        </button>
+      </div>
+      {moodLabel ? (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          Mood: <span className="font-medium text-zinc-700 dark:text-zinc-200">{moodLabel}</span>
+        </div>
+      ) : null}
+      {highlightParts.length ? (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">{highlightParts.join(" · ")}</div>
+      ) : null}
+      {practiceBadges.length ? (
+        <div className="flex flex-wrap gap-2">
+          {practiceBadges.map((badge) => (
+            <span key={badge} className="chip text-[11px]">
+              {badge}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {weeklyCompletedNames.length ? (
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          Weekly anchors: {weeklyCompletedNames.join(", ")}
+        </div>
+      ) : null}
+      {customMetricChips.length ? (
+        <div className="flex flex-wrap gap-2">
+          {customMetricChips.map((chip) => (
+            <span key={chip.id} className="chip text-[11px]">
+              {chip.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {tags.length ? (
+        <div className="flex flex-wrap gap-2">
+          {tags.slice(0, 5).map((tag) => (
+            <span key={tag} className="chip text-[11px]">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {scripturePreview ? (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">Scripture: {scripturePreview}</p>
+      ) : null}
+      {notesPreview ? (
+        <p className="text-xs italic text-zinc-500 dark:text-zinc-400">Journal: {notesPreview}</p>
+      ) : null}
+    </article>
   );
 }
 
@@ -1420,9 +1764,9 @@ function formatMetricValue(value) {
 
 function Card({ title, children }) {
   return (
-    <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 shadow-sm p-4">
-      <h2 className="font-semibold tracking-tight mb-3 text-zinc-800 dark:text-zinc-100">{title}</h2>
-      <div className="grid gap-3 text-sm">{children}</div>
+    <section className="glass-card">
+      <h2 className="card-title">{title}</h2>
+      <div className="grid gap-3 text-sm text-zinc-600 dark:text-zinc-300">{children}</div>
     </section>
   );
 }
@@ -1693,12 +2037,11 @@ function TagSelector({ tags, onChange }) {
       <div className="text-sm font-medium">Tag the day</div>
       <div className="flex flex-wrap gap-2">
         {tags.map((tag) => (
-          <span
-            key={tag}
-            className="inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300"
-          >
+          <span key={tag} className="chip">
             #{tag}
-            <button type="button" onClick={() => removeTag(tag)} className="text-[11px]">×</button>
+            <button type="button" onClick={() => removeTag(tag)} className="chip-remove">
+              ×
+            </button>
           </span>
         ))}
       </div>
@@ -1713,7 +2056,7 @@ function TagSelector({ tags, onChange }) {
             }
           }}
           placeholder="Add tag"
-          className="flex-1 min-w-[8rem] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+          className="flex-1 min-w-[8rem] rounded-xl border border-white/60 bg-white/80 px-3 py-2 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
         />
         <button className="btn" type="button" onClick={() => addTag(input)}>
           Add
@@ -1725,7 +2068,7 @@ function TagSelector({ tags, onChange }) {
             key={suggestion}
             type="button"
             onClick={() => addTag(suggestion)}
-            className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 text-[11px] text-zinc-600 hover:border-emerald-400 hover:text-emerald-600"
+            className="chip hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200"
           >
             #{suggestion}
           </button>
@@ -1819,11 +2162,11 @@ function ReminderBanner({ reminder, onComplete, onSnooze }) {
   if (!reminder) return null;
   const timeLabel = reminder.time || reminder.scheduled?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
-    <div className="sticky top-16 z-30 mx-auto max-w-4xl px-4">
-      <div className="mt-4 rounded-2xl border border-emerald-400/60 bg-emerald-500/10 px-4 py-3 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-emerald-800 dark:text-emerald-200">
+    <div className="sticky top-32 z-30 mx-auto max-w-4xl px-4">
+      <div className="glass-card reminder-card mt-4">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="font-semibold">Reminder: {reminder.label}</span>
-          <span className="text-xs">Scheduled for {timeLabel}</span>
+          <span className="text-xs opacity-80">Scheduled for {timeLabel}</span>
           <div className="ml-auto flex gap-2">
             <button className="btn" onClick={() => onComplete(reminder.id)}>
               Logged
@@ -1841,14 +2184,16 @@ function ReminderBanner({ reminder, onComplete, onSnooze }) {
 function PracticeSpotlight({ spotlight, onNext }) {
   if (!spotlight) return null;
   return (
-    <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-500/10 p-4">
-      <div className="flex items-start gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">Practice spotlight</h3>
-          <div className="text-sm text-emerald-800 dark:text-emerald-100 mt-1 font-medium">{spotlight.title}</div>
-          <p className="text-xs text-emerald-800/90 dark:text-emerald-200/90 mt-1 leading-relaxed">{spotlight.body}</p>
+    <div className="glass-card spotlight-card">
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-700/80 dark:text-emerald-200/80">
+            Practice spotlight
+          </h3>
+          <div className="mt-1 text-base font-semibold text-emerald-900 dark:text-emerald-100">{spotlight.title}</div>
+          <p className="mt-2 text-sm leading-relaxed text-emerald-800/90 dark:text-emerald-100/80">{spotlight.body}</p>
         </div>
-        <button className="btn ml-auto" onClick={onNext}>
+        <button className="btn" onClick={onNext}>
           Another
         </button>
       </div>
@@ -1943,13 +2288,13 @@ function WeeklyAnchors({ date, setData, data }) {
 
   return (
     <div className="grid gap-2 text-sm">
-      {WEEKLY_ANCHOR_KEYS.map((k) => (
-        <label key={k} className="flex items-center justify-between">
-          <span className="capitalize">{k}</span>
+      {WEEKLY_ANCHORS.map(({ key, label }) => (
+        <label key={key} className="flex items-center justify-between gap-3">
+          <span className="text-sm text-zinc-700 dark:text-zinc-200">{label}</span>
           <input
             type="checkbox"
-            checked={all[k]}
-            onChange={(e) => toggle(k, e.target.checked)}
+            checked={all[key]}
+            onChange={(e) => toggle(key, e.target.checked)}
             className="h-5 w-5 accent-emerald-600"
           />
         </label>
@@ -1962,7 +2307,7 @@ function WeeklyAnchors({ date, setData, data }) {
 function TopNav({ date, setDate, data }) {
   const dots = useMemo(() => monthDots(date, data), [date, data]);
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-4 grid gap-3">
+    <div className="glass-card grid gap-4">
       <div className="flex items-center gap-2">
         <button className="btn" onClick={() => setDate(prevDay(date, -1))}>
           ← Prev
@@ -1973,7 +2318,7 @@ function TopNav({ date, setDate, data }) {
           onChange={(e) => {
             setDate(e.target.value);
           }}
-          className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+          className="rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
         />
         <button className="btn" onClick={() => setDate(todayISO())}>
           Today
@@ -1981,7 +2326,7 @@ function TopNav({ date, setDate, data }) {
         <button className="btn" onClick={() => setDate(prevDay(date, 1))}>
           Next →
         </button>
-        <span className="ml-auto text-sm text-zinc-500">Tip: Use ← → keys</span>
+        <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400">Tip: Use ← → keys</span>
       </div>
       <MiniMonth dots={dots} onPick={setDate} current={date} />
     </div>
@@ -2012,9 +2357,11 @@ function MiniMonth({ dots, onPick, current }) {
               type="button"
               onClick={() => onPick(date)}
               className={
-                "aspect-square rounded-md text-[11px] tabular-nums flex items-center justify-center border transition " +
-                (isCurrent ? "border-emerald-500 " : "border-transparent ") +
-                (filled ? "bg-emerald-500/20 dark:bg-emerald-500/25" : "bg-zinc-200/30 dark:bg-zinc-800/50")
+                "aspect-square rounded-lg text-[11px] tabular-nums flex items-center justify-center border transition-colors backdrop-blur " +
+                (isCurrent
+                  ? "border-emerald-500 bg-emerald-500/30 text-emerald-900 shadow-sm dark:text-emerald-100"
+                  : "border-white/50 bg-white/70 text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300") +
+                (filled ? " ring-1 ring-emerald-500/40" : "")
               }
               aria-pressed={isCurrent}
             >
@@ -2194,15 +2541,12 @@ function PinMenu({ hasPIN, updatePIN }) {
   const [working, setWorking] = useState(false);
   return (
     <div className="relative">
-      <button
-        className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        onClick={() => setOpen((o) => !o)}
-      >
+      <button className="btn" onClick={() => setOpen((o) => !o)}>
         {hasPIN ? "🔒 PIN" : "🔓 Set PIN"}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-64 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-lg">
-          <div className="text-sm mb-2">
+        <div className="absolute right-0 z-40 mt-3 w-72 rounded-2xl border border-white/60 bg-white/80 p-4 text-left shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
+          <div className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
             Optional 4-digit app lock. When enabled, your journal + scripture entries are stored encrypted on this device.
             If supported, we’ll also save the PIN to your browser’s credential manager for biometric unlocks.
           </div>
@@ -2210,7 +2554,7 @@ function PinMenu({ hasPIN, updatePIN }) {
             value={val}
             onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
             placeholder="1234"
-            className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 mb-2"
+            className="mb-3 w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-lg tracking-[0.35em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
           />
           <div className="flex gap-2">
             <button
@@ -2282,35 +2626,40 @@ function LockScreen({ tryUnlock }) {
   };
 
   return (
-    <div className="min-h-screen grid place-items-center bg-zinc-50 dark:bg-zinc-950">
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-6 w-full max-w-sm text-center">
-        <h2 className="text-lg font-semibold mb-2">Enter PIN</h2>
-        <input
-          value={val}
-          onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          className="w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-center text-2xl tracking-widest"
-        />
-        <button className="btn w-full mt-3" onClick={submit} disabled={working}>
-          {working ? "Checking…" : "Unlock"}
-        </button>
-        <button
-          type="button"
-          className="btn w-full mt-2"
-          onClick={useDeviceCredential}
-          disabled={working}
-        >
-          Use saved device credential
-        </button>
-        <p className="text-xs text-zinc-500 mt-2">
-          Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser’s password manager
-          and may prompt for biometric confirmation.
-        </p>
+    <div className="app-shell">
+      <div className="relative z-10 grid min-h-screen place-items-center px-4">
+        <div className="glass-card w-full max-w-sm text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+            🔒
+          </div>
+          <h2 className="mb-2 text-lg font-semibold">Enter PIN</h2>
+          <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+            Your journal is encrypted when a PIN is set. Unlock to continue.
+          </p>
+          <input
+            value={val}
+            onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            className="w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-2xl tracking-[0.5em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+          />
+          <div className="mt-4 grid gap-2">
+            <button className="btn w-full justify-center" onClick={submit} disabled={working}>
+              {working ? "Checking…" : "Unlock"}
+            </button>
+            <button type="button" className="btn w-full justify-center" onClick={useDeviceCredential} disabled={working}>
+              Use saved device credential
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser’s password manager
+            and may prompt for biometric confirmation.
+          </p>
+        </div>
       </div>
     </div>
   );
