@@ -76,6 +76,8 @@ const blankDay = (date) => ({
     magnificat: false,
     rosaryDecades: 0,
     nightSilence: false,
+    actOfContrition: false,
+    gratitudePrayer: false,
   },
   temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
   weekly: {
@@ -199,9 +201,17 @@ const MARIAN_CONSECRATION_URL =
 const ANGELUS_PRAYER_URL = "https://theangelusprayer.com/angelus-prayer/";
 const BENEDICTUS_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/68-79";
 const MAGNIFICAT_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/46-55";
+const ACT_OF_CONTRITION_URL = "https://www.vaticannews.va/en/prayers/act-of-contrition.html";
 
 const BODY_BLESSING_TOOLTIP =
   "A gentle practice of tracing blessings over your body, inviting Christ's healing and peace.";
+const BREATHE_MEDITATION_TOOLTIP = "Sit upright in silence for a few deep breaths.";
+const JESUS_PRAYER_TOOLTIP =
+  "(In breath) Lord Jesus Christ, Son of God, (out breath) have mercy on me, a sinner.";
+const STILLNESS_PAUSE_TOOLTIP =
+  "Wherever you are, take three slow breaths. Rest in stillness, imagining Christ sitting with you.";
+const GRATITUDE_PRAYER_TOOLTIP =
+  "Give thanks to God for one person, event, or challenge from today.";
 
 const ROSARY_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -1004,7 +1014,7 @@ const SUM_AGGREGATE = {
 const BASE_METRIC_OPTIONS = [
   {
     value: "breathMinutes",
-    label: "Breath meditation (min)",
+    label: "Breathe meditation (min)",
     accessor: (day) => day.morning.breathMinutes || 0,
     unit: "min",
     aggregate: SUM_AGGREGATE,
@@ -1117,6 +1127,22 @@ const BASE_METRIC_OPTIONS = [
     aggregate: SUM_AGGREGATE,
   },
   {
+    value: "eveningActOfContrition",
+    label: "Act of Contrition",
+    accessor: (day) => (day.evening.actOfContrition ? 1 : 0),
+    unit: "",
+    weeklyUnit: "days",
+    aggregate: SUM_AGGREGATE,
+  },
+  {
+    value: "eveningGratitudePrayer",
+    label: "Gratitude prayer",
+    accessor: (day) => (day.evening.gratitudePrayer ? 1 : 0),
+    unit: "",
+    weeklyUnit: "days",
+    aggregate: SUM_AGGREGATE,
+  },
+  {
     value: "nightSilence",
     label: "Silence before sleep",
     accessor: (day) => (day.evening.nightSilence ? 1 : 0),
@@ -1170,6 +1196,8 @@ const normalizeDay = (input = {}) => ({
     magnificat: input.evening?.magnificat ?? false,
     rosaryDecades: input.evening?.rosaryDecades ?? 0,
     nightSilence: input.evening?.nightSilence ?? false,
+    actOfContrition: input.evening?.actOfContrition ?? false,
+    gratitudePrayer: input.evening?.gratitudePrayer ?? false,
   },
   temptations: {
     urgesNoted: input.temptations?.urgesNoted ?? 0,
@@ -1203,6 +1231,8 @@ function dayHasActivity(day) {
   if (day.midday?.stillness || day.midday?.bodyBlessing) return true;
   if (day.evening?.examen || day.evening?.nightSilence) return true;
   if (day.evening?.magnificat) return true;
+  if (day.evening?.actOfContrition) return true;
+  if (day.evening?.gratitudePrayer) return true;
   if ((day.evening?.rosaryDecades || 0) > 0) return true;
   if ((day.temptations?.urgesNoted || 0) > 0) return true;
   if ((day.temptations?.victories || 0) > 0) return true;
@@ -1793,7 +1823,7 @@ function App() {
         />
         <PracticeSpotlight spotlight={spotlight} onNext={cycleSpotlight} />
         <div className="grid md:grid-cols-3 gap-6">
-          <Card title="Morning">
+          <Card title="Morning — Awakening in Christ">
             <ToggleRow
               label={
                 <a
@@ -1837,12 +1867,44 @@ function App() {
               onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, benedictus: v } }))}
             />
             <TimerRow
-              label="Breath Meditation (min)"
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="cursor-help underline decoration-dotted underline-offset-2"
+                    title={BREATHE_MEDITATION_TOOLTIP}
+                  >
+                    Breathe Meditation (min)
+                  </span>
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                    title={BREATHE_MEDITATION_TOOLTIP}
+                    aria-hidden="true"
+                  >
+                    ?
+                  </span>
+                </span>
+              }
               minutes={d.morning.breathMinutes}
               onChange={(m) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, breathMinutes: clamp(m, 0, 600) } }))}
             />
             <CounterRow
-              label="Jesus Prayer (count)"
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="cursor-help underline decoration-dotted underline-offset-2"
+                    title={JESUS_PRAYER_TOOLTIP}
+                  >
+                    Jesus Prayer (count)
+                  </span>
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                    title={JESUS_PRAYER_TOOLTIP}
+                    aria-hidden="true"
+                  >
+                    ?
+                  </span>
+                </span>
+              }
               value={d.morning.jesusPrayerCount}
               onChange={(n) => setDay(date, (x) => ({
                 ...x,
@@ -1851,7 +1913,7 @@ function App() {
             />
           </Card>
 
-          <Card title="Midday">
+          <Card title="Midday — Re-centring on Christ">
             <ToggleRow
               label={
                 <a
@@ -1867,7 +1929,23 @@ function App() {
               onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, angelus: v } }))}
             />
             <ToggleRow
-              label="Stillness Pause"
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="cursor-help underline decoration-dotted underline-offset-2"
+                    title={STILLNESS_PAUSE_TOOLTIP}
+                  >
+                    Stillness Pause
+                  </span>
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                    title={STILLNESS_PAUSE_TOOLTIP}
+                    aria-hidden="true"
+                  >
+                    ?
+                  </span>
+                </span>
+              }
               checked={d.midday.stillness}
               onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, stillness: v } }))}
             />
@@ -1901,7 +1979,7 @@ function App() {
             />
           </Card>
 
-          <Card title="Evening">
+          <Card title="Evening — Resting in Christ">
             <ToggleRow
               label={
                 <a
@@ -1943,12 +2021,47 @@ function App() {
               onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))}
             />
             <RosaryMysteryNote mystery={rosaryMystery} />
+            {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
             <ToggleRow
               label="Silence Before Sleep"
               checked={d.evening.nightSilence}
               onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, nightSilence: v } }))}
             />
-            {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
+            <ToggleRow
+              label={
+                <a
+                  href={ACT_OF_CONTRITION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                >
+                  Act of Contrition
+                </a>
+              }
+              checked={d.evening.actOfContrition}
+              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, actOfContrition: v } }))}
+            />
+            <ToggleRow
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="cursor-help underline decoration-dotted underline-offset-2"
+                    title={GRATITUDE_PRAYER_TOOLTIP}
+                  >
+                    Gratitude Prayer
+                  </span>
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                    title={GRATITUDE_PRAYER_TOOLTIP}
+                    aria-hidden="true"
+                  >
+                    ?
+                  </span>
+                </span>
+              }
+              checked={d.evening.gratitudePrayer}
+              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, gratitudePrayer: v } }))}
+            />
           </Card>
         </div>
 
@@ -2156,6 +2269,14 @@ function App() {
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                     <span>Silence before sleep</span>
                     <span className="tabular-nums font-semibold">{totals.eveningNightSilence}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Act of Contrition</span>
+                    <span className="tabular-nums font-semibold">{totals.eveningActOfContrition}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Gratitude prayer</span>
+                    <span className="tabular-nums font-semibold">{totals.eveningGratitudePrayer}</span>
                   </div>
                 </div>
               </div>
@@ -2406,6 +2527,8 @@ function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
     Boolean(day.evening?.angelus),
     Boolean(day.evening?.magnificat),
     Boolean(day.evening?.nightSilence),
+    Boolean(day.evening?.actOfContrition),
+    Boolean(day.evening?.gratitudePrayer),
   ];
   const dailyCompleted = dailyFlags.filter(Boolean).length;
   const weeklyCompleted = WEEKLY_ANCHOR_KEYS.filter((key) => day.weekly?.[key]).length;
@@ -2441,6 +2564,8 @@ function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
   if (day.evening?.angelus) practiceBadges.push("🔔 Evening Angelus");
   if (day.evening?.magnificat) practiceBadges.push("🎶 Magnificat");
   if (day.evening?.nightSilence) practiceBadges.push("🌌 Night silence");
+  if (day.evening?.actOfContrition) practiceBadges.push("🕯️ Act of Contrition");
+  if (day.evening?.gratitudePrayer) practiceBadges.push("✨ Gratitude prayer");
 
   const customMetricChips = [];
   if (customMetricMap && customMetricMap.size) {
@@ -3821,7 +3946,9 @@ function anyPracticeDone(day) {
     day.evening.rosaryDecades > 0 ||
     day.evening.angelus ||
     day.evening.magnificat ||
-    day.evening.nightSilence
+    day.evening.nightSilence ||
+    day.evening.actOfContrition ||
+    day.evening.gratitudePrayer
   );
 }
 
@@ -3895,6 +4022,8 @@ function calcTotals(data) {
       if (evening.angelus) acc.eveningAngelus += 1;
       if (evening.magnificat) acc.eveningMagnificat += 1;
       if (evening.nightSilence) acc.eveningNightSilence += 1;
+      if (evening.actOfContrition) acc.eveningActOfContrition += 1;
+      if (evening.gratitudePrayer) acc.eveningGratitudePrayer += 1;
 
       if (weekly.mass) acc.weeklyMass += 1;
       if (weekly.confession) acc.weeklyConfession += 1;
@@ -3923,6 +4052,8 @@ function calcTotals(data) {
       eveningAngelus: 0,
       eveningMagnificat: 0,
       eveningNightSilence: 0,
+      eveningActOfContrition: 0,
+      eveningGratitudePrayer: 0,
       weeklyMass: 0,
       weeklyConfession: 0,
       weeklyFasting: 0,
@@ -4083,6 +4214,8 @@ function toCSV(data, customMetrics = []) {
     "EveningMagnificat",
     "RosaryDecades",
     "NightSilence",
+    "ActOfContrition",
+    "GratitudePrayer",
     "UrgesNoted",
     "Victories",
     "Lapses",
@@ -4118,6 +4251,8 @@ function toCSV(data, customMetrics = []) {
         day.evening.magnificat ? 1 : 0,
         day.evening.rosaryDecades,
         day.evening.nightSilence ? 1 : 0,
+        day.evening.actOfContrition ? 1 : 0,
+        day.evening.gratitudePrayer ? 1 : 0,
         day.temptations.urgesNoted,
         day.temptations.victories,
         day.temptations.lapses,
