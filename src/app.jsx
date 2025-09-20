@@ -1,5 +1,10 @@
 const { useEffect, useMemo, useRef, useState } = React;
 
+const BRUSHSTROKE_CROSS =
+  typeof window !== "undefined" && window.BRUSHSTROKE_CROSS
+    ? window.BRUSHSTROKE_CROSS
+    : "";
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymd = (d) => d.toISOString().slice(0, 10);
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -181,11 +186,12 @@ function App() {
       <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3">
           <img
-            src="./enso-cross.svg"
+            src={BRUSHSTROKE_CROSS}
             alt="Mindfulness and Prayer Tracker logo"
             className="h-10 w-10 shrink-0"
             width="40"
             height="40"
+            loading="lazy"
           />
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Mindfulness and Prayer Tracker</h1>
           <span className="ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
