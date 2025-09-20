@@ -41,6 +41,7 @@ const blankDay = date => ({
     accountability: false
   }
 });
+const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
 const normalizeDay = (input = {}) => ({
   date: input.date || todayISO(),
   scripture: input.scripture ?? "",
@@ -197,6 +198,23 @@ function App() {
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
   const totals = useMemo(() => calcTotals(data), [data]);
+  const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
+  const weekStartLabel = useMemo(() => {
+    const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
+    if (!startDate || Number.isNaN(startDate.getTime())) return "--";
+    return startDate.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric"
+    });
+  }, [weekSummary.start]);
+  const weekEndLabel = useMemo(() => {
+    const endDate = weekSummary?.end ? new Date(weekSummary.end) : null;
+    if (!endDate || Number.isNaN(endDate.getTime())) return "--";
+    return endDate.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric"
+    });
+  }, [weekSummary.end]);
   useEffect(() => {
     const onKey = e => {
       if (e.key === "ArrowLeft") setDate(prevDay(date, -1));
@@ -369,6 +387,26 @@ function App() {
       }
     }))
   })), /*#__PURE__*/React.createElement(Card, {
+    title: "Weekly Summary"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm grid gap-2"
+  }, /*#__PURE__*/React.createElement("div", null, "Week of ", /*#__PURE__*/React.createElement("b", null, weekStartLabel), " \u2013", /*#__PURE__*/React.createElement("b", null, " ", weekEndLabel)), /*#__PURE__*/React.createElement("div", null, "Breath meditation: ", /*#__PURE__*/React.createElement("b", null, weekSummary.totals.breathMinutes), " min"), /*#__PURE__*/React.createElement("div", null, "Jesus Prayer: ", /*#__PURE__*/React.createElement("b", null, weekSummary.totals.jesusPrayerCount)), /*#__PURE__*/React.createElement("div", null, "Rosary decades: ", /*#__PURE__*/React.createElement("b", null, weekSummary.totals.rosaryDecades)), /*#__PURE__*/React.createElement("div", {
+    className: "pt-2 border-t border-zinc-200 dark:border-zinc-800"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
+  }, /*#__PURE__*/React.createElement("span", null, "Weekly Anchors"), /*#__PURE__*/React.createElement("span", null, weekSummary.completedCount, "/", weekSummary.totalAnchors, " done")), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 grid gap-1"
+  }, WEEKLY_ANCHOR_KEYS.map(k => {
+    const complete = weekSummary.anchors[k];
+    return /*#__PURE__*/React.createElement("div", {
+      key: k,
+      className: "flex items-center justify-between"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "capitalize"
+    }, k), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs font-medium " + (complete ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-500 dark:text-zinc-400")
+    }, complete ? "Completed" : "Pending"));
+  }))))), /*#__PURE__*/React.createElement(Card, {
     title: "Stats"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm grid gap-2"
@@ -606,8 +644,7 @@ function WeeklyAnchors({
   data
 }) {
   const week = useMemo(() => weekRange(new Date(date)), [date]);
-  const flags = ["mass", "confession", "fasting", "accountability"];
-  const all = flags.reduce((acc, k) => {
+  const all = WEEKLY_ANCHOR_KEYS.reduce((acc, k) => {
     acc[k] = week.every(d => (data[ymd(d)] ?? blankDay(ymd(d))).weekly[k]);
     return acc;
   }, {});
@@ -630,7 +667,7 @@ function WeeklyAnchors({
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2 text-sm"
-  }, flags.map(k => /*#__PURE__*/React.createElement("label", {
+  }, WEEKLY_ANCHOR_KEYS.map(k => /*#__PURE__*/React.createElement("label", {
     key: k,
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("span", {
@@ -871,6 +908,56 @@ function calcTotals(data) {
     victories: 0,
     lapses: 0
   });
+}
+function calcWeekSummary(data, dateISO) {
+  const target = new Date(dateISO);
+  if (Number.isNaN(target.getTime())) {
+    const anchors = WEEKLY_ANCHOR_KEYS.reduce((acc, key) => {
+      acc[key] = false;
+      return acc;
+    }, {});
+    return {
+      start: dateISO,
+      end: dateISO,
+      totals: {
+        breathMinutes: 0,
+        jesusPrayerCount: 0,
+        rosaryDecades: 0
+      },
+      anchors,
+      completedCount: 0,
+      totalAnchors: WEEKLY_ANCHOR_KEYS.length
+    };
+  }
+  const week = weekRange(target);
+  const totals = {
+    breathMinutes: 0,
+    jesusPrayerCount: 0,
+    rosaryDecades: 0
+  };
+  const anchors = WEEKLY_ANCHOR_KEYS.reduce((acc, key) => {
+    acc[key] = true;
+    return acc;
+  }, {});
+  week.forEach(dt => {
+    const key = ymd(dt);
+    const day = data[key] ? normalizeDay(data[key]) : blankDay(key);
+    totals.breathMinutes += day.morning.breathMinutes || 0;
+    totals.jesusPrayerCount += day.morning.jesusPrayerCount || 0;
+    totals.rosaryDecades += day.evening.rosaryDecades || 0;
+    WEEKLY_ANCHOR_KEYS.forEach(anchor => {
+      if (!day.weekly[anchor]) anchors[anchor] = false;
+    });
+  });
+  const completedCount = WEEKLY_ANCHOR_KEYS.reduce((acc, key) => acc + (anchors[key] ? 1 : 0), 0);
+  return {
+    start: ymd(week[0]),
+    end: ymd(week[week.length - 1]),
+    totals,
+    anchors,
+    completedCount,
+    totalAnchors: WEEKLY_ANCHOR_KEYS.length
+  };
 }
 function weekRange(d) {
   const day = d.getDay();
