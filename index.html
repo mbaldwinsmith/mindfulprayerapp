@@ -126,42 +126,6 @@ function normalizeDay(input) {
       }
     }
 
-    
-
-    // Added: normalize missing fields from older saved data
-    ;
-      return {
-        date: d.date || todayISO(),
-        scripture: d.scripture ?? "",
-        notes: d.notes ?? "",
-        morning: {
-          consecration: d.morning?.consecration ?? false,
-          breathMinutes: d.morning?.breathMinutes ?? 0,
-          jesusPrayerCount: d.morning?.jesusPrayerCount ?? 0,
-        },
-        midday: {
-          stillness: d.midday?.stillness ?? false,
-          bodyBlessing: d.midday?.bodyBlessing ?? false,
-        },
-        evening: {
-          examen: d.evening?.examen ?? false,
-          rosaryDecades: d.evening?.rosaryDecades ?? 0,
-          nightSilence: d.evening?.nightSilence ?? false,
-        },
-        temptations: {
-          urgesNoted: d.temptations?.urgesNoted ?? 0,
-          lapses: d.temptations?.lapses ?? 0,
-          victories: d.temptations?.victories ?? 0,
-        },
-        weekly: {
-          mass: d.weekly?.mass ?? false,
-          confession: d.weekly?.confession ?? false,
-          fasting: d.weekly?.fasting ?? false,
-          accountability: d.weekly?.accountability ?? false,
-        },
-      };
-    }
-
     function useTheme() {
       const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || "light");
       useEffect(() => {
@@ -303,7 +267,7 @@ function normalizeDay(input) {
               <Card title="Backup / Restore">
                 <BackupControls data={data} setData={setData} />
               </Card>
-                          <Card title="Settings & Safety">
+              <Card title="Settings & Safety">
                 <div className="grid gap-2 text-sm">
                   <button className="btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30" onClick={resetApp}>
                     Reset App (export → clear → reload)
@@ -483,14 +447,29 @@ function normalizeDay(input) {
           <div className="mb-2 text-sm font-medium">{monthLabel}</div>
           <div className="grid grid-cols-7 gap-1">
             {["M","T","W","T","F","S","S"].map((d) => <div key={d} className="text-center text-[10px] text-zinc-500">{d}</div>)}
-            {dots.map(({ date, filled }) => (
-              <button key={date} onClick={() => onPick(date)}
-                className={"aspect-square rounded-md text-[11px] tabular-nums flex items-center justify-center border " +
-                (date===current?"border-emerald-500 ":"border-transparent ") +
-                (filled?"bg-emerald-500/20 dark:bg-emerald-500/25":"bg-zinc-200/30 dark:bg-zinc-800/50")}>
-                {Number(String(date).slice(-2))}
-              </button>
-            ))}
+            {dots.map(({ date, filled }) => {
+              const strDate = String(date);
+              const isRealDate = /^\d{4}-\d{2}-\d{2}$/.test(strDate);
+              if (!isRealDate) {
+                return <div key={date} className="aspect-square rounded-md" aria-hidden="true" />;
+              }
+              const isCurrent = date === current;
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => onPick(date)}
+                  className={
+                    "aspect-square rounded-md text-[11px] tabular-nums flex items-center justify-center border transition " +
+                    (isCurrent ? "border-emerald-500 " : "border-transparent ") +
+                    (filled ? "bg-emerald-500/20 dark:bg-emerald-500/25" : "bg-zinc-200/30 dark:bg-zinc-800/50")
+                  }
+                  aria-pressed={isCurrent}
+                >
+                  {Number(strDate.slice(-2))}
+                </button>
+              );
+            })}
           </div>
           <div className="mt-1 text-[10px] text-zinc-500">Filled = any practice done that day</div>
         </div>
