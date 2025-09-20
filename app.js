@@ -1,4 +1,5 @@
 const {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -8,9 +9,49 @@ const BRUSHSTROKE_CROSS = typeof window !== "undefined" && window.BRUSHSTROKE_CR
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymd = d => d.toISOString().slice(0, 10);
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 const STORE_KEY = "zc_tracker_v1";
+const SECURE_STORE_KEY = "zc_tracker_secure_v1";
 const PIN_KEY = "zc_pin_v1";
 const THEME_KEY = "zc_theme";
+const PREFS_KEY = "zc_preferences_v1";
+const REMINDER_STATE_KEY = "zc_reminder_state_v1";
+const DEVICE_CREDENTIAL_ID = "mindful-prayer-pin";
+const BASELINE_ITERATIONS = 120000;
+function toBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function fromBase64(base64) {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+const randomId = () => Math.random().toString(36).slice(2, 10);
+async function storeDeviceCredential(pin) {
+  try {
+    if (!navigator.credentials || typeof window.PasswordCredential === "undefined") return false;
+    const credential = new window.PasswordCredential({
+      id: DEVICE_CREDENTIAL_ID,
+      name: "Mindfulness & Prayer Tracker",
+      password: pin
+    });
+    await navigator.credentials.store(credential);
+    return true;
+  } catch (e) {
+    console.warn("Unable to store credential", e);
+    return false;
+  }
+}
 const blankDay = date => ({
   date,
   scripture: "",
@@ -39,15 +80,146 @@ const blankDay = date => ({
     confession: false,
     fasting: false,
     accountability: false
-  }
+  },
+  mood: "",
+  contextTags: [],
+  customMetrics: {}
 });
+async function deriveKeyMaterial(pin, saltBuffer, iterations = BASELINE_ITERATIONS) {
+  const baseKey = await crypto.subtle.importKey("raw", textEncoder.encode(pin), "PBKDF2", false, ["deriveBits", "deriveKey"]);
+  const params = {
+    name: "PBKDF2",
+    salt: saltBuffer,
+    iterations,
+    hash: "SHA-256"
+  };
+  const key = await crypto.subtle.deriveKey(params, baseKey, {
+    name: "AES-GCM",
+    length: 256
+  }, false, ["encrypt", "decrypt"]);
+  const bits = await crypto.subtle.deriveBits(params, baseKey, 256);
+  return {
+    key,
+    bits
+  };
+}
+async function encryptJSON(key, data) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const payload = textEncoder.encode(JSON.stringify(data));
+  const ciphertext = await crypto.subtle.encrypt({
+    name: "AES-GCM",
+    iv
+  }, key, payload);
+  return {
+    iv: toBase64(iv.buffer),
+    data: toBase64(ciphertext)
+  };
+}
+async function decryptJSON(key, payload) {
+  if (!payload) return {};
+  const obj = typeof payload === "string" ? JSON.parse(payload) : payload;
+  const iv = fromBase64(obj.iv);
+  const ciphertext = fromBase64(obj.data);
+  const decrypted = await crypto.subtle.decrypt({
+    name: "AES-GCM",
+    iv: new Uint8Array(iv)
+  }, key, ciphertext);
+  const text = textDecoder.decode(decrypted);
+  return JSON.parse(text);
+}
 const WEEKLY_ANCHOR_KEYS = ["mass", "confession", "fasting", "accountability"];
+const MOOD_OPTIONS = [{
+  value: "joyful",
+  label: "Joyful",
+  emoji: "😊"
+}, {
+  value: "grateful",
+  label: "Grateful",
+  emoji: "🙏"
+}, {
+  value: "peaceful",
+  label: "Peaceful",
+  emoji: "🕊️"
+}, {
+  value: "tender",
+  label: "Tender",
+  emoji: "💗"
+}, {
+  value: "wrestling",
+  label: "Wrestling",
+  emoji: "😔"
+}, {
+  value: "weary",
+  label: "Weary",
+  emoji: "😴"
+}, {
+  value: "hopeful",
+  label: "Hopeful",
+  emoji: "🌅"
+}];
+const getMoodMeta = value => MOOD_OPTIONS.find(option => option.value === value) || null;
+const TAG_SUGGESTIONS = ["gratitude", "lament", "discernment", "family", "stillness", "healing", "mercy", "service", "intercession", "rest"];
+const DEFAULT_REMINDERS = {
+  morning: {
+    enabled: false,
+    time: "07:00",
+    label: "Morning consecration"
+  },
+  midday: {
+    enabled: false,
+    time: "12:30",
+    label: "Midday stillness"
+  },
+  evening: {
+    enabled: false,
+    time: "21:30",
+    label: "Evening examen"
+  }
+};
+const DEFAULT_PREFERENCES = {
+  onboardingComplete: false,
+  showGuidedPrompts: true,
+  customMetrics: [],
+  reminders: DEFAULT_REMINDERS,
+  allowNotifications: false,
+  spotlightIndex: 0,
+  tomorrowPlan: ""
+};
+const LECTIO_PROMPTS = ["Read slowly and notice a word or phrase that shimmers.", "Listen for Christ speaking the passage directly to you.", "How does this scripture invite you to act in love today?", "Rest in silence after reading—receive the gift rather than striving."];
+const JOURNAL_PROMPTS = ["Where did you sense consolation or desolation today?", "Name a person you want to hold in prayer right now.", "What invitation from God feels most alive this evening?", "What resistance or distraction surfaced, and how might grace meet it?", "Celebrate one small victory of faithfulness from today."];
+const EXAMEN_PROMPTS = ["Review the day with gratitude and note any gentle surprises.", "Ask the Spirit to show a moment you wish had gone differently.", "Is there someone to forgive—or to ask forgiveness from?", "Offer tomorrow to God, trusting grace for what you cannot control."];
+const PRACTICE_SPOTLIGHTS = [{
+  title: "Breath Prayer Reset",
+  body: "Pause for four slow breaths. On the inhale pray ‘Jesus, Son of God’; on the exhale ‘have mercy on me.’"
+}, {
+  title: "Lectio Anchor",
+  body: "Try reading the day’s scripture aloud three times, listening for a word that stays with you through the day."
+}, {
+  title: "Embodied Blessing",
+  body: "Place a hand over your heart and bless your body for carrying you. Offer kindness to any tense place."
+}, {
+  title: "Nightly Surrender",
+  body: "Before sleep, picture placing the day into God’s hands. Notice what feels hard to release and breathe out gently."
+}, {
+  title: "Community Check-In",
+  body: "Send a short note to a spiritual friend sharing one gratitude and one need for prayer."
+}];
+const ONBOARDING_STEPS = [{
+  title: "Welcome to your prayer companion",
+  body: "Track morning, midday, and evening practices—all stored privately on this device unless you export a backup."
+}, {
+  title: "Log what matters most",
+  body: "Add custom metrics, note your mood, and tag themes so you can notice grace-filled patterns over time."
+}, {
+  title: "Stay gently on rhythm",
+  body: "Enable reminders for the rhythms you choose and revisit the rotating practice spotlight when you want fresh inspiration."
+}];
 const SUM_AGGREGATE = {
   init: () => 0,
   accumulate: (acc, value) => acc + value,
   finalize: acc => acc
 };
-const METRIC_OPTIONS = [{
+const BASE_METRIC_OPTIONS = [{
   value: "breathMinutes",
   label: "Breath meditation (min)",
   accessor: day => day.morning.breathMinutes || 0,
@@ -126,6 +298,20 @@ const METRIC_VIEW_OPTIONS = [{
   value: "weekly",
   label: "Weekly"
 }];
+function buildCustomMetricOptions(customMetrics = []) {
+  return customMetrics.filter(metric => metric && metric.id && metric.name).map(metric => ({
+    value: `custom:${metric.id}`,
+    label: metric.name,
+    accessor: day => {
+      const raw = day.customMetrics?.[metric.id];
+      const numeric = typeof raw === "number" ? raw : Number(raw || 0);
+      return Number.isFinite(numeric) ? numeric : 0;
+    },
+    unit: metric.unit || "",
+    aggregate: SUM_AGGREGATE,
+    definition: metric
+  }));
+}
 const normalizeDay = (input = {}) => ({
   date: input.date || todayISO(),
   scripture: input.scripture ?? "",
@@ -154,7 +340,10 @@ const normalizeDay = (input = {}) => ({
     confession: input.weekly?.confession ?? false,
     fasting: input.weekly?.fasting ?? false,
     accountability: input.weekly?.accountability ?? false
-  }
+  },
+  mood: input.mood ?? "",
+  contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
+  customMetrics: input.customMetrics ?? {}
 });
 function exportDataJSON(data) {
   try {
@@ -204,20 +393,239 @@ function useTheme() {
     setTheme
   };
 }
-function useData() {
-  const [data, setData] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
+function loadPreferences() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return {
+      ...DEFAULT_PREFERENCES
+    };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {
+      ...DEFAULT_PREFERENCES
+    };
+    return {
+      ...DEFAULT_PREFERENCES,
+      ...parsed,
+      reminders: {
+        ...DEFAULT_PREFERENCES.reminders,
+        ...(parsed.reminders || {})
+      },
+      customMetrics: Array.isArray(parsed.customMetrics) ? parsed.customMetrics : [],
+      tomorrowPlan: typeof parsed.tomorrowPlan === "string" ? parsed.tomorrowPlan : ""
+    };
+  } catch (e) {
+    console.warn("Failed to load preferences", e);
+    return {
+      ...DEFAULT_PREFERENCES
+    };
+  }
+}
+function usePreferences() {
+  const [preferences, setPreferences] = useState(() => loadPreferences());
   useEffect(() => {
-    localStorage.setItem(STORE_KEY, JSON.stringify(data));
-  }, [data]);
-  const setDay = (date, updater) => {
-    setData(prev => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(preferences));
+    } catch (e) {
+      console.warn("Unable to persist preferences", e);
+    }
+  }, [preferences]);
+  const updatePreferences = useCallback(updater => {
+    setPreferences(prev => {
+      const patch = typeof updater === "function" ? updater(prev) : updater;
+      const next = {
+        ...prev,
+        ...patch,
+        reminders: {
+          ...prev.reminders,
+          ...(patch?.reminders || {})
+        }
+      };
+      if (patch?.customMetrics) {
+        next.customMetrics = patch.customMetrics;
+      }
+      return next;
+    });
+  }, []);
+  return {
+    preferences,
+    updatePreferences,
+    setPreferences
+  };
+}
+function loadReminderState() {
+  try {
+    const raw = localStorage.getItem(REMINDER_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function saveReminderState(state) {
+  try {
+    localStorage.setItem(REMINDER_STATE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn("Unable to persist reminder state", e);
+  }
+}
+function parseReminderTime(timeStr) {
+  if (!timeStr || typeof timeStr !== "string") return null;
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return null;
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+}
+function useReminders(reminders, allowNotifications) {
+  const [activeReminder, setActiveReminder] = useState(null);
+  useEffect(() => {
+    if (!reminders) return undefined;
+    let mounted = true;
+    const checkReminders = async () => {
+      const now = new Date();
+      const state = loadReminderState();
+      const entries = Object.entries(reminders);
+      for (const [id, reminder] of entries) {
+        if (!reminder?.enabled) continue;
+        const scheduled = parseReminderTime(reminder.time);
+        if (!scheduled) continue;
+        if (now.getTime() < scheduled.getTime()) continue;
+        const diff = now.getTime() - scheduled.getTime();
+        if (diff > 45 * 60 * 1000) continue;
+        const dayKey = todayISO();
+        const record = state[id] || {};
+        if (record.done === dayKey) continue;
+        if (record.snoozedUntil && now.getTime() < record.snoozedUntil) continue;
+        if (allowNotifications && typeof Notification !== "undefined") {
+          if (Notification.permission === "granted") {
+            new Notification(reminder.label, {
+              body: "Gentle nudge: it's time for your planned prayer rhythm."
+            });
+          }
+        }
+        if (mounted) {
+          setActiveReminder({
+            id,
+            ...reminder,
+            scheduled
+          });
+        }
+        break;
+      }
+    };
+    checkReminders();
+    const interval = window.setInterval(checkReminders, 60 * 1000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, [reminders, allowNotifications]);
+  const markReminderDone = useCallback(id => {
+    const state = loadReminderState();
+    state[id] = {
+      ...(state[id] || {}),
+      done: todayISO(),
+      snoozedUntil: null
+    };
+    saveReminderState(state);
+    setActiveReminder(prev => prev?.id === id ? null : prev);
+  }, []);
+  const snoozeReminder = useCallback((id, minutes = 10) => {
+    const state = loadReminderState();
+    const until = Date.now() + minutes * 60 * 1000;
+    state[id] = {
+      ...(state[id] || {}),
+      snoozedUntil: until
+    };
+    saveReminderState(state);
+    setActiveReminder(prev => prev?.id === id ? null : prev);
+  }, []);
+  const requestNotifications = useCallback(async () => {
+    if (typeof Notification === "undefined") return false;
+    if (Notification.permission === "granted") return true;
+    const permission = await Notification.requestPermission();
+    return permission === "granted";
+  }, []);
+  return {
+    activeReminder,
+    markReminderDone,
+    snoozeReminder,
+    requestNotifications
+  };
+}
+function useData({
+  hasPIN,
+  unlocked,
+  encryptionKey,
+  unlockGeneration
+}) {
+  const [data, setDataState] = useState({});
+  const [ready, setReady] = useState(false);
+  const loadData = useCallback(async () => {
+    if (hasPIN && !unlocked) {
+      setReady(false);
+      setDataState({});
+      return;
+    }
+    try {
+      if (hasPIN) {
+        const secureRaw = localStorage.getItem(SECURE_STORE_KEY);
+        if (secureRaw && encryptionKey) {
+          const decrypted = await decryptJSON(encryptionKey, JSON.parse(secureRaw));
+          setDataState(decrypted && typeof decrypted === "object" ? decrypted : {});
+        } else {
+          const plain = localStorage.getItem(STORE_KEY);
+          setDataState(plain ? JSON.parse(plain) : {});
+        }
+      } else {
+        const raw = localStorage.getItem(STORE_KEY);
+        setDataState(raw ? JSON.parse(raw) : {});
+      }
+    } catch (e) {
+      console.error("Failed to load tracker data", e);
+      setDataState({});
+    } finally {
+      setReady(true);
+    }
+  }, [hasPIN, unlocked, encryptionKey]);
+  useEffect(() => {
+    loadData();
+  }, [loadData, unlockGeneration, hasPIN, unlocked]);
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (hasPIN) {
+          if (!encryptionKey) return;
+          const payload = await encryptJSON(encryptionKey, data);
+          if (!cancelled) {
+            localStorage.setItem(SECURE_STORE_KEY, JSON.stringify(payload));
+            localStorage.removeItem(STORE_KEY);
+          }
+        } else {
+          localStorage.setItem(STORE_KEY, JSON.stringify(data));
+          localStorage.removeItem(SECURE_STORE_KEY);
+        }
+      } catch (e) {
+        console.error("Failed to persist tracker data", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data, ready, hasPIN, encryptionKey]);
+  const setData = useCallback(value => {
+    setDataState(typeof value === "function" ? value : {
+      ...value
+    });
+  }, []);
+  const setDay = useCallback((date, updater) => {
+    setDataState(prev => {
       const curRaw = prev[date] ?? blankDay(date);
       const cur = normalizeDay(curRaw);
       return {
@@ -227,39 +635,110 @@ function useData() {
         })
       };
     });
-  };
+  }, []);
   return {
     data,
     setData,
-    setDay
+    setDay,
+    ready
   };
 }
+function loadPINInfo() {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.salt || !parsed?.verifier) return null;
+    return {
+      salt: parsed.salt,
+      verifier: parsed.verifier,
+      iterations: parsed.iterations || BASELINE_ITERATIONS
+    };
+  } catch (e) {
+    console.warn("Failed to parse stored PIN", e);
+    return null;
+  }
+}
 function usePIN() {
-  const [pin, setPin] = useState(() => localStorage.getItem(PIN_KEY));
-  const [unlocked, setUnlocked] = useState(() => !pin);
-  const tryUnlock = attempt => {
+  const initialPinInfoRef = useRef(loadPINInfo());
+  const [pinInfo, setPinInfo] = useState(() => initialPinInfoRef.current);
+  const [unlocked, setUnlocked] = useState(() => !initialPinInfoRef.current);
+  const [encryptionKey, setEncryptionKey] = useState(null);
+  const [unlockGeneration, setUnlockGeneration] = useState(0);
+  const hasPIN = Boolean(pinInfo);
+  const tryUnlock = useCallback(async attempt => {
+    if (!hasPIN) {
+      setUnlocked(true);
+      return true;
+    }
+    if (!attempt) {
+      alert("Enter your 4-digit PIN");
+      return false;
+    }
+    try {
+      const saltBuffer = fromBase64(pinInfo.salt);
+      const {
+        key,
+        bits
+      } = await deriveKeyMaterial(attempt, saltBuffer, pinInfo.iterations || BASELINE_ITERATIONS);
+      const verifier = toBase64(bits);
+      if (verifier === pinInfo.verifier) {
+        setEncryptionKey(key);
+        setUnlocked(true);
+        setUnlockGeneration(g => g + 1);
+        return true;
+      }
+    } catch (e) {
+      console.warn("PIN unlock failed", e);
+    }
+    alert("Incorrect PIN");
+    return false;
+  }, [hasPIN, pinInfo]);
+  const updatePIN = useCallback(async pin => {
     if (!pin) {
-      setUnlocked(true);
-      return;
-    }
-    if (attempt === pin) setUnlocked(true);else alert("Incorrect PIN");
-  };
-  const updatePIN = p => {
-    if (p) {
-      localStorage.setItem(PIN_KEY, p);
-      setPin(p);
-      setUnlocked(false);
-    } else {
       localStorage.removeItem(PIN_KEY);
-      setPin(null);
+      setPinInfo(null);
+      setEncryptionKey(null);
       setUnlocked(true);
+      setUnlockGeneration(g => g + 1);
+      return true;
     }
-  };
+    if (pin.length !== 4) {
+      alert("PIN must be exactly 4 digits");
+      return false;
+    }
+    try {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const {
+        key,
+        bits
+      } = await deriveKeyMaterial(pin, salt.buffer, BASELINE_ITERATIONS);
+      const info = {
+        salt: toBase64(salt.buffer),
+        verifier: toBase64(bits),
+        iterations: BASELINE_ITERATIONS
+      };
+      localStorage.setItem(PIN_KEY, JSON.stringify(info));
+      setPinInfo(info);
+      setEncryptionKey(key);
+      setUnlocked(true);
+      setUnlockGeneration(g => g + 1);
+      storeDeviceCredential(pin);
+      return true;
+    } catch (e) {
+      console.error("Failed to set PIN", e);
+      alert("Could not secure PIN. Please try again.");
+      return false;
+    }
+  }, []);
   return {
-    pin,
+    hasPIN,
+    pinInfo,
     unlocked,
     tryUnlock,
-    updatePIN
+    updatePIN,
+    encryptionKey,
+    unlockGeneration
   };
 }
 function App() {
@@ -268,28 +747,50 @@ function App() {
     setTheme
   } = useTheme();
   const {
-    data,
-    setData,
-    setDay
-  } = useData();
+    preferences,
+    updatePreferences
+  } = usePreferences();
   const {
-    pin,
+    hasPIN,
     unlocked,
     tryUnlock,
-    updatePIN
+    updatePIN,
+    encryptionKey,
+    unlockGeneration
   } = usePIN();
+  const {
+    data,
+    setData,
+    setDay,
+    ready
+  } = useData({
+    hasPIN,
+    unlocked,
+    encryptionKey,
+    unlockGeneration
+  });
   const [date, setDate] = useState(todayISO());
-  const [selectedMetric, setSelectedMetric] = useState(METRIC_OPTIONS[0].value);
+  const metricOptions = useMemo(() => {
+    const combined = [...BASE_METRIC_OPTIONS, ...buildCustomMetricOptions(preferences.customMetrics)];
+    return combined.length ? combined : [...BASE_METRIC_OPTIONS];
+  }, [preferences.customMetrics]);
+  const [selectedMetric, setSelectedMetric] = useState(() => metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
   const [metricView, setMetricView] = useState("daily");
+  useEffect(() => {
+    if (!metricOptions.some(option => option.value === selectedMetric)) {
+      setSelectedMetric(metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
+    }
+  }, [metricOptions, selectedMetric]);
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
   const longestStreak = useMemo(() => calcLongestStreak(data), [data]);
   const totals = useMemo(() => calcTotals(data), [data]);
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
-  const metricConfig = useMemo(() => METRIC_OPTIONS.find(opt => opt.value === selectedMetric) ?? METRIC_OPTIONS[0], [selectedMetric]);
-  const metricSeries = useMemo(() => buildMetricSeries(data, selectedMetric), [data, selectedMetric]);
+  const metricConfig = useMemo(() => metricOptions.find(opt => opt.value === selectedMetric) ?? metricOptions[0], [metricOptions, selectedMetric]);
+  const metricSeries = useMemo(() => buildMetricSeries(data, selectedMetric, metricOptions), [data, selectedMetric, metricOptions]);
   const displayedMetricSeries = metricView === "weekly" ? metricSeries.weekly : metricSeries.daily;
   const metricSummary = useMemo(() => computeMetricSummary(metricSeries, metricView), [metricSeries, metricView]);
+  const metricHighlights = useMemo(() => computeMetricHighlights(metricSeries, metricConfig, metricView), [metricSeries, metricConfig, metricView]);
   const weekStartLabel = useMemo(() => {
     const startDate = weekSummary?.start ? new Date(weekSummary.start) : null;
     if (!startDate || Number.isNaN(startDate.getTime())) return "--";
@@ -306,6 +807,22 @@ function App() {
       day: "numeric"
     });
   }, [weekSummary.end]);
+  const customTotals = useMemo(() => calcCustomTotals(data, preferences.customMetrics), [data, preferences.customMetrics]);
+  const tagSummary = useMemo(() => summarizeTags(data), [data]);
+  const moodSummary = useMemo(() => summarizeMood(data), [data]);
+  const latestMoodMeta = useMemo(() => getMoodMeta(moodSummary.latest?.mood), [moodSummary]);
+  const {
+    activeReminder,
+    markReminderDone,
+    snoozeReminder,
+    requestNotifications
+  } = useReminders(preferences.reminders, preferences.allowNotifications);
+  const spotlight = useMemo(() => PRACTICE_SPOTLIGHTS[preferences.spotlightIndex % PRACTICE_SPOTLIGHTS.length], [preferences.spotlightIndex]);
+  const cycleSpotlight = useCallback(() => {
+    updatePreferences(prev => ({
+      spotlightIndex: (prev.spotlightIndex + 1) % PRACTICE_SPOTLIGHTS.length
+    }));
+  }, [updatePreferences]);
   useEffect(() => {
     const onKey = e => {
       if (e.key === "ArrowLeft") setDate(prevDay(date, -1));
@@ -319,7 +836,11 @@ function App() {
   });
   return /*#__PURE__*/React.createElement("div", {
     className: "min-h-screen"
-  }, /*#__PURE__*/React.createElement("header", {
+  }, !preferences.onboardingComplete && /*#__PURE__*/React.createElement(OnboardingDialog, {
+    onComplete: () => updatePreferences({
+      onboardingComplete: true
+    })
+  }), /*#__PURE__*/React.createElement("header", {
     className: "sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-5xl px-4 py-3 flex items-center gap-3"
@@ -339,11 +860,18 @@ function App() {
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
   }, theme === "dark" ? "☀️ Light" : "🌙 Dark"), /*#__PURE__*/React.createElement(PinMenu, {
-    pin: pin,
+    hasPIN: hasPIN,
     updatePIN: updatePIN
   })))), /*#__PURE__*/React.createElement("main", {
     className: "mx-auto max-w-5xl px-4 py-6 grid gap-6"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(ReminderBanner, {
+    reminder: activeReminder,
+    onComplete: markReminderDone,
+    onSnooze: id => snoozeReminder(id, 10)
+  }), /*#__PURE__*/React.createElement(PracticeSpotlight, {
+    spotlight: spotlight,
+    onNext: cycleSpotlight
+  }), /*#__PURE__*/React.createElement("div", {
     className: "grid md:grid-cols-3 gap-6"
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Morning"
@@ -403,6 +931,11 @@ function App() {
     date: date,
     d: d,
     setDay: setDay
+  }), /*#__PURE__*/React.createElement(CustomMetricInputs, {
+    date: date,
+    day: d,
+    setDay: setDay,
+    customMetrics: preferences.customMetrics
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Evening"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
@@ -437,6 +970,9 @@ function App() {
         nightSilence: v
       }
     }))
+  }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
+    title: "Gentle examen",
+    prompts: EXAMEN_PROMPTS
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid md:grid-cols-3 gap-6"
   }, /*#__PURE__*/React.createElement(Card, {
@@ -449,6 +985,9 @@ function App() {
     })),
     className: "w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500",
     placeholder: "E.g., \u2018Blessed are the pure in heart\u2026\u2019 (Matt 5:8)"
+  }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
+    title: "Lectio divina prompt",
+    prompts: LECTIO_PROMPTS
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Weekly Anchors (auto-applies to week)"
   }, /*#__PURE__*/React.createElement(WeeklyAnchors, {
@@ -457,7 +996,22 @@ function App() {
     data: data
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Journal"
-  }, /*#__PURE__*/React.createElement("textarea", {
+  }, preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
+    title: "Journal spark",
+    prompts: JOURNAL_PROMPTS
+  }), /*#__PURE__*/React.createElement(MoodSelector, {
+    value: d.mood,
+    onChange: mood => setDay(date, x => ({
+      ...x,
+      mood
+    }))
+  }), /*#__PURE__*/React.createElement(TagSelector, {
+    tags: d.contextTags,
+    onChange: tags => setDay(date, x => ({
+      ...x,
+      contextTags: tags
+    }))
+  }), /*#__PURE__*/React.createElement("textarea", {
     value: d.notes,
     onChange: e => setDay(date, x => ({
       ...x,
@@ -504,7 +1058,9 @@ function App() {
     setMetricView: setMetricView,
     series: displayedMetricSeries,
     summary: metricSummary,
-    metricConfig: metricConfig
+    metricConfig: metricConfig,
+    metricOptions: metricOptions,
+    highlights: metricHighlights
   }), /*#__PURE__*/React.createElement(Card, {
     title: "Stats"
   }, /*#__PURE__*/React.createElement("div", {
@@ -543,7 +1099,16 @@ function App() {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Lapses"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
-  }, totals.lapses))), /*#__PURE__*/React.createElement("div", {
+  }, totals.lapses))), customTotals.length ? /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+  }, "Custom totals to date"), customTotals.map(entry => /*#__PURE__*/React.createElement("div", {
+    key: entry.id,
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, entry.name), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, formatMetricValue(entry.total), " ", entry.unit)))) : null, /*#__PURE__*/React.createElement("div", {
     className: "grid gap-1"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
@@ -591,21 +1156,73 @@ function App() {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Accountability"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
-  }, totals.weeklyAccountability)))))), /*#__PURE__*/React.createElement(Card, {
+  }, totals.weeklyAccountability)))), moodSummary.counts.length ? /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+  }, "Mood patterns"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2 text-xs"
+  }, moodSummary.counts.map(([mood, count]) => {
+    const meta = getMoodMeta(mood);
+    return /*#__PURE__*/React.createElement("span", {
+      key: mood,
+      className: "inline-flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-1"
+    }, meta?.emoji, " ", meta?.label || mood, " \xB7 ", count);
+  })), latestMoodMeta ? /*#__PURE__*/React.createElement("p", {
+    className: "text-[11px] text-zinc-500"
+  }, "Last logged mood: ", latestMoodMeta.emoji, " ", latestMoodMeta.label) : null) : null, tagSummary.length ? /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+  }, "Frequent tags"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300"
+  }, tagSummary.slice(0, 10).map(([tag, count]) => /*#__PURE__*/React.createElement("span", {
+    key: tag,
+    className: "rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5"
+  }, "#", tag, " \xB7 ", count)))) : null)), /*#__PURE__*/React.createElement(Card, {
     title: "Backup / Restore"
   }, /*#__PURE__*/React.createElement(BackupControls, {
     data: data,
-    setData: setData
+    setData: setData,
+    preferences: preferences,
+    updatePreferences: updatePreferences
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Settings & Safety"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2 text-sm"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center justify-between gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Show guided prompts"), /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: preferences.showGuidedPrompts,
+    onChange: e => updatePreferences({
+      showGuidedPrompts: e.target.checked
+    })
+  })), /*#__PURE__*/React.createElement("button", {
     className: "btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30",
     onClick: resetApp
   }, "Reset App (export \u2192 clear \u2192 reload)"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
-  }, "This will optionally back up your data as JSON, then clear local storage and unregister the service worker before reloading.")))), /*#__PURE__*/React.createElement(TopNav, {
+  }, "This will optionally back up your data as JSON, then clear local storage and unregister the service worker before reloading.")))), /*#__PURE__*/React.createElement("div", {
+    className: "grid md:grid-cols-2 gap-6"
+  }, /*#__PURE__*/React.createElement(Card, {
+    title: "Custom Metrics"
+  }, /*#__PURE__*/React.createElement(CustomMetricManager, {
+    customMetrics: preferences.customMetrics,
+    updatePreferences: updatePreferences
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "Reminders & Planning"
+  }, /*#__PURE__*/React.createElement(ReminderPlanner, {
+    reminders: preferences.reminders,
+    updatePreferences: updatePreferences,
+    allowNotifications: preferences.allowNotifications,
+    requestNotifications: requestNotifications
+  }), /*#__PURE__*/React.createElement(PlanTomorrow, {
+    plan: preferences.tomorrowPlan,
+    onChange: value => updatePreferences({
+      tomorrowPlan: value
+    })
+  }))), /*#__PURE__*/React.createElement(TopNav, {
     date: date,
     setDate: setDate,
     data: data
@@ -620,7 +1237,9 @@ function MetricTrendsCard({
   setMetricView,
   series,
   summary,
-  metricConfig
+  metricConfig,
+  metricOptions,
+  highlights
 }) {
   const unit = metricView === "weekly" ? metricConfig.weeklyUnit ?? metricConfig.unit : metricConfig.unit;
   const latestLabel = metricView === "weekly" ? "Latest week" : "Latest day";
@@ -638,7 +1257,7 @@ function MetricTrendsCard({
     onChange: e => setSelectedMetric(e.target.value),
     className: "rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 text-sm",
     "aria-label": "Select metric to visualize"
-  }, METRIC_OPTIONS.map(option => /*#__PURE__*/React.createElement("option", {
+  }, metricOptions.map(option => /*#__PURE__*/React.createElement("option", {
     key: option.value,
     value: option.value
   }, option.label))), /*#__PURE__*/React.createElement("div", {
@@ -659,7 +1278,20 @@ function MetricTrendsCard({
     className: "flex items-baseline justify-between text-sm text-zinc-600 dark:text-zinc-200"
   }, /*#__PURE__*/React.createElement("span", null, averageLabel), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-medium text-zinc-800 dark:text-zinc-100"
-  }, averageDisplay, summary.averageValue != null && unit ? " " + unit : ""))), /*#__PURE__*/React.createElement(MetricSparkline, {
+  }, averageDisplay, summary.averageValue != null && unit ? " " + unit : "")), highlights ? /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1 text-[11px] text-zinc-500 dark:text-zinc-400"
+  }, /*#__PURE__*/React.createElement("div", null, "Total recorded: ", /*#__PURE__*/React.createElement("b", {
+    className: "text-zinc-700 dark:text-zinc-200"
+  }, formatMetricValue(highlights.total)), highlights.unit ? " " + highlights.unit : ""), /*#__PURE__*/React.createElement("div", null, "Record high: ", /*#__PURE__*/React.createElement("b", {
+    className: "text-zinc-700 dark:text-zinc-200"
+  }, formatMetricValue(highlights.maxValue)), highlights.maxDate ? ` on ${formatSeriesLabel({
+    date: highlights.maxDate,
+    end: highlights.maxEnd
+  }, metricView, "end")}` : ""), /*#__PURE__*/React.createElement("div", null, "Current streak: ", /*#__PURE__*/React.createElement("b", {
+    className: "text-zinc-700 dark:text-zinc-200"
+  }, highlights.currentStreak), " day(s) \xB7 Longest streak:", /*#__PURE__*/React.createElement("b", {
+    className: "text-zinc-700 dark:text-zinc-200"
+  }, " ", highlights.longestStreak))) : null), /*#__PURE__*/React.createElement(MetricSparkline, {
     series: series,
     view: metricView,
     metricLabel: metricConfig.label
@@ -936,6 +1568,312 @@ function TemptationBox({
     className: "text-xs text-zinc-500"
   }, "Note urges gently; celebrate victories; bring lapses to Confession with hope."));
 }
+function CustomMetricInputs({
+  date,
+  day,
+  setDay,
+  customMetrics
+}) {
+  if (!customMetrics?.length) return null;
+  const current = day.customMetrics || {};
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-sm font-medium"
+  }, "Custom practice log"), customMetrics.map(metric => /*#__PURE__*/React.createElement(CustomMetricField, {
+    key: metric.id,
+    metric: metric,
+    value: current[metric.id] ?? 0,
+    onChange: value => setDay(date, existing => ({
+      ...existing,
+      customMetrics: {
+        ...(existing.customMetrics || {}),
+        [metric.id]: value
+      }
+    }))
+  })), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500"
+  }, "Track anything else meaningful to your rhythm\u2014minutes of silence, chapters read, or visits with a friend."));
+}
+function CustomMetricField({
+  metric,
+  value,
+  onChange
+}) {
+  return /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center justify-between gap-3 pr-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex-1"
+  }, metric.name, metric.unit ? /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-zinc-500"
+  }, " (", metric.unit, ")") : null), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: value,
+    onChange: e => {
+      const next = Number(e.target.value);
+      onChange(Number.isFinite(next) ? next : 0);
+    },
+    className: "w-24 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 px-2 py-1 text-right tabular-nums"
+  }));
+}
+function MoodSelector({
+  value,
+  onChange
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-medium"
+  }, "How are you arriving today?"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, MOOD_OPTIONS.map(option => {
+    const active = option.value === value;
+    return /*#__PURE__*/React.createElement("button", {
+      key: option.value,
+      type: "button",
+      onClick: () => onChange(active ? "" : option.value),
+      className: "rounded-full px-3 py-1 text-sm transition border " + (active ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300")
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "mr-1"
+    }, option.emoji), option.label);
+  })));
+}
+function TagSelector({
+  tags,
+  onChange
+}) {
+  const [input, setInput] = useState("");
+  const addTag = tag => {
+    const normalized = String(tag || "").trim();
+    if (!normalized) return;
+    if (tags.includes(normalized)) return;
+    onChange([...tags, normalized]);
+    setInput("");
+  };
+  const removeTag = tag => {
+    onChange(tags.filter(t => t !== tag));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-medium"
+  }, "Tag the day"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, tags.map(tag => /*#__PURE__*/React.createElement("span", {
+    key: tag,
+    className: "inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300"
+  }, "#", tag, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => removeTag(tag),
+    className: "text-[11px]"
+  }, "\xD7")))), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: input,
+    onChange: e => setInput(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addTag(input);
+      }
+    },
+    placeholder: "Add tag",
+    className: "flex-1 min-w-[8rem] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    type: "button",
+    onClick: () => addTag(input)
+  }, "Add")), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2 text-xs"
+  }, TAG_SUGGESTIONS.map(suggestion => /*#__PURE__*/React.createElement("button", {
+    key: suggestion,
+    type: "button",
+    onClick: () => addTag(suggestion),
+    className: "rounded-full border border-zinc-200 dark:border-zinc-800 px-2 py-0.5 text-[11px] text-zinc-600 hover:border-emerald-400 hover:text-emerald-600"
+  }, "#", suggestion))));
+}
+function GuidedPrompt({
+  title,
+  prompts
+}) {
+  const [index, setIndex] = useState(() => Math.floor(Math.random() * prompts.length) || 0);
+  useEffect(() => {
+    setIndex(0);
+  }, [prompts]);
+  const cycle = () => {
+    setIndex(prev => (prev + 1) % prompts.length);
+  };
+  const prompt = prompts[index] || "";
+  return /*#__PURE__*/React.createElement("div", {
+    className: "rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 p-3 text-xs text-zinc-600 dark:text-zinc-300"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-zinc-700 dark:text-zinc-100"
+  }, title), /*#__PURE__*/React.createElement("button", {
+    className: "ml-auto text-[11px] text-emerald-600 hover:underline",
+    type: "button",
+    onClick: cycle
+  }, "New prompt \u21BA")), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 leading-relaxed"
+  }, prompt));
+}
+function ReminderPlanner({
+  reminders,
+  updatePreferences,
+  allowNotifications,
+  requestNotifications
+}) {
+  const toggleReminder = (id, patch) => {
+    updatePreferences(prev => ({
+      reminders: {
+        ...prev.reminders,
+        [id]: {
+          ...prev.reminders[id],
+          ...patch
+        }
+      }
+    }));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-3 text-sm"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-sm font-medium"
+  }, "Daily reminder times"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500"
+  }, "Set gentle alerts (while the app is open) for key rhythms. Enable browser notifications for extra nudges.")), Object.entries(reminders).map(([id, reminder]) => /*#__PURE__*/React.createElement("div", {
+    key: id,
+    className: "flex flex-wrap items-center gap-2"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "inline-flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: reminder.enabled,
+    onChange: e => toggleReminder(id, {
+      enabled: e.target.checked
+    })
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "capitalize"
+  }, reminder.label || id)), /*#__PURE__*/React.createElement("input", {
+    type: "time",
+    value: reminder.time,
+    onChange: e => toggleReminder(id, {
+      time: e.target.value
+    }),
+    className: "rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-2 text-xs text-zinc-500"
+  }, /*#__PURE__*/React.createElement("span", null, "Browser notifications:"), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    type: "button",
+    onClick: async () => {
+      const granted = await requestNotifications();
+      if (granted) updatePreferences({
+        allowNotifications: true
+      });
+    }
+  }, allowNotifications ? "Enabled" : "Enable"), allowNotifications ? /*#__PURE__*/React.createElement("span", {
+    className: "text-emerald-600"
+  }, "Granted") : null));
+}
+function ReminderBanner({
+  reminder,
+  onComplete,
+  onSnooze
+}) {
+  if (!reminder) return null;
+  const timeLabel = reminder.time || reminder.scheduled?.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "sticky top-16 z-30 mx-auto max-w-4xl px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 rounded-2xl border border-emerald-400/60 bg-emerald-500/10 px-4 py-3 shadow-sm backdrop-blur"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-3 text-sm text-emerald-800 dark:text-emerald-200"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "Reminder: ", reminder.label), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs"
+  }, "Scheduled for ", timeLabel), /*#__PURE__*/React.createElement("div", {
+    className: "ml-auto flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: () => onComplete(reminder.id)
+  }, "Logged"), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: () => onSnooze(reminder.id)
+  }, "Snooze 10m")))));
+}
+function PracticeSpotlight({
+  spotlight,
+  onNext
+}) {
+  if (!spotlight) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-500/10 p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-sm font-semibold text-emerald-700 dark:text-emerald-200"
+  }, "Practice spotlight"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm text-emerald-800 dark:text-emerald-100 mt-1 font-medium"
+  }, spotlight.title), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-emerald-800/90 dark:text-emerald-200/90 mt-1 leading-relaxed"
+  }, spotlight.body)), /*#__PURE__*/React.createElement("button", {
+    className: "btn ml-auto",
+    onClick: onNext
+  }, "Another")));
+}
+function OnboardingDialog({
+  onComplete
+}) {
+  const [step, setStep] = useState(0);
+  const totalSteps = ONBOARDING_STEPS.length;
+  const current = ONBOARDING_STEPS[step];
+  if (!current) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-40 grid place-items-center bg-black/40 backdrop-blur-sm px-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-full max-w-lg rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xl"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs uppercase tracking-wide text-emerald-600"
+  }, "Step ", step + 1, " of ", totalSteps), /*#__PURE__*/React.createElement("h2", {
+    className: "mt-2 text-xl font-semibold text-zinc-900 dark:text-zinc-100"
+  }, current.title), /*#__PURE__*/React.createElement("p", {
+    className: "mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300"
+  }, current.body), /*#__PURE__*/React.createElement("div", {
+    className: "mt-6 flex justify-between items-center"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "text-xs text-zinc-500 hover:text-zinc-700",
+    onClick: () => onComplete()
+  }, "Skip tour"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: () => {
+      if (step + 1 >= totalSteps) onComplete();else setStep(s => s + 1);
+    }
+  }, step + 1 >= totalSteps ? "Let’s begin" : "Next")))));
+}
+function PlanTomorrow({
+  plan,
+  onChange
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2 text-sm"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-medium"
+  }, "Plan tomorrow\u2019s focus"), /*#__PURE__*/React.createElement("textarea", {
+    value: plan,
+    onChange: e => onChange(e.target.value),
+    placeholder: "Jot a short intention for tomorrow\u2019s prayer rhythm\u2026",
+    className: "min-h-[4.5rem] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500"
+  }, "Tomorrow\u2019s intention appears here for quick review when you begin the day."));
+}
 function SmallCounter({
   label,
   value,
@@ -1077,10 +2015,16 @@ function MiniMonth({
 }
 function BackupControls({
   data,
-  setData
+  setData,
+  preferences,
+  updatePreferences
 }) {
   const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
+    const payload = {
+      data,
+      preferences
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json"
     });
     const url = URL.createObjectURL(blob);
@@ -1091,7 +2035,7 @@ function BackupControls({
     URL.revokeObjectURL(url);
   };
   const exportCSV = () => {
-    const rows = toCSV(data);
+    const rows = toCSV(data, preferences.customMetrics);
     const blob = new Blob([rows], {
       type: "text/csv;charset=utf-8;"
     });
@@ -1108,7 +2052,13 @@ function BackupControls({
       try {
         const obj = JSON.parse(String(reader.result));
         if (!obj || typeof obj !== "object") throw new Error("Invalid file");
-        setData(obj);
+        if (obj.data && typeof obj.data === "object") setData(obj.data);else setData(obj);
+        if (obj.preferences && typeof obj.preferences === "object") {
+          updatePreferences(prev => ({
+            ...prev,
+            ...obj.preferences
+          }));
+        }
         alert("Import successful.");
       } catch (e) {
         alert("Import failed: " + e.message);
@@ -1137,22 +2087,111 @@ function BackupControls({
     className: "text-xs text-zinc-500"
   }, "Back up locally. Files stay on your device."));
 }
+function CustomMetricManager({
+  customMetrics,
+  updatePreferences
+}) {
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("");
+  const maxMetrics = 6;
+  const remaining = maxMetrics - customMetrics.length;
+  const addMetric = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const id = `${trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 12)}-${randomId()}`;
+    updatePreferences(prev => ({
+      customMetrics: [...prev.customMetrics, {
+        id,
+        name: trimmed,
+        unit: unit.trim()
+      }]
+    }));
+    setName("");
+    setUnit("");
+  };
+  const updateMetric = (id, patch) => {
+    updatePreferences(prev => ({
+      customMetrics: prev.customMetrics.map(metric => metric.id === id ? {
+        ...metric,
+        ...patch
+      } : metric)
+    }));
+  };
+  const removeMetric = id => {
+    updatePreferences(prev => ({
+      customMetrics: prev.customMetrics.filter(metric => metric.id !== id)
+    }));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-3 text-sm"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-sm font-medium mb-1"
+  }, "Custom metrics"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500"
+  }, "Create extra counters or minute trackers for practices unique to you. They\u2019ll appear in today\u2019s log and analytics.")), customMetrics.length ? /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2"
+  }, customMetrics.map(metric => /*#__PURE__*/React.createElement("div", {
+    key: metric.id,
+    className: "rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2 flex flex-wrap items-center gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: metric.name,
+    onChange: e => updateMetric(metric.id, {
+      name: e.target.value
+    }),
+    className: "flex-1 min-w-[8rem] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+  }), /*#__PURE__*/React.createElement("input", {
+    value: metric.unit || "",
+    onChange: e => updateMetric(metric.id, {
+      unit: e.target.value
+    }),
+    placeholder: "Unit",
+    className: "w-24 rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: () => removeMetric(metric.id)
+  }, "Remove")))) : /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-zinc-500"
+  }, "No custom metrics yet."), remaining > 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-medium text-sm"
+  }, "Add a metric"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "e.g., Lectio minutes",
+    className: "flex-1 min-w-[8rem] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+  }), /*#__PURE__*/React.createElement("input", {
+    value: unit,
+    onChange: e => setUnit(e.target.value),
+    placeholder: "Unit (optional)",
+    className: "w-28 rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: addMetric,
+    disabled: !name.trim()
+  }, "Add")), /*#__PURE__*/React.createElement("p", {
+    className: "text-[11px] text-zinc-500"
+  }, "You can add ", remaining, " more.")) : null);
+}
 function PinMenu({
-  pin,
+  hasPIN,
   updatePIN
 }) {
   const [open, setOpen] = useState(false);
-  const [val, setVal] = useState(pin || "");
+  const [val, setVal] = useState("");
+  const [working, setWorking] = useState(false);
   return /*#__PURE__*/React.createElement("div", {
     className: "relative"
   }, /*#__PURE__*/React.createElement("button", {
     className: "px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800",
     onClick: () => setOpen(o => !o)
-  }, pin ? "🔒 PIN" : "🔓 Set PIN"), open && /*#__PURE__*/React.createElement("div", {
+  }, hasPIN ? "🔒 PIN" : "🔓 Set PIN"), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute right-0 mt-2 w-64 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-lg"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm mb-2"
-  }, "Optional 4-digit app lock (device-local)."), /*#__PURE__*/React.createElement("input", {
+  }, "Optional 4-digit app lock. When enabled, your journal + scripture entries are stored encrypted on this device. If supported, we\u2019ll also save the PIN to your browser\u2019s credential manager for biometric unlocks."), /*#__PURE__*/React.createElement("input", {
     value: val,
     onChange: e => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)),
     placeholder: "1234",
@@ -1161,16 +2200,27 @@ function PinMenu({
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn",
-    onClick: () => {
-      if (val.length === 4) {
-        updatePIN(val);
+    disabled: working,
+    onClick: async () => {
+      if (val.length !== 4) {
+        alert("Enter 4 digits");
+        return;
+      }
+      setWorking(true);
+      const success = await updatePIN(val);
+      setWorking(false);
+      if (success) {
         setOpen(false);
-      } else alert("Enter 4 digits");
+        setVal("");
+      }
     }
-  }, "Set"), /*#__PURE__*/React.createElement("button", {
+  }, hasPIN ? "Update" : "Set"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
-    onClick: () => {
-      updatePIN(null);
+    disabled: working || !hasPIN,
+    onClick: async () => {
+      setWorking(true);
+      await updatePIN(null);
+      setWorking(false);
       setVal("");
       setOpen(false);
     }
@@ -1180,6 +2230,33 @@ function LockScreen({
   tryUnlock
 }) {
   const [val, setVal] = useState("");
+  const [working, setWorking] = useState(false);
+  const submit = async (pinValue = val) => {
+    if (working) return;
+    setWorking(true);
+    const ok = await tryUnlock(pinValue);
+    setWorking(false);
+    if (!ok) setVal("");
+  };
+  const useDeviceCredential = async () => {
+    try {
+      if (!navigator.credentials) {
+        alert("Device credential unlock not supported in this browser.");
+        return;
+      }
+      const credential = await navigator.credentials.get({
+        password: true,
+        mediation: "optional"
+      });
+      if (!credential || credential.id !== DEVICE_CREDENTIAL_ID || !credential.password) {
+        alert("No saved device credential was found. Set a PIN first to store one.");
+        return;
+      }
+      submit(credential.password);
+    } catch (e) {
+      alert("Could not use saved credential: " + e.message);
+    }
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "min-h-screen grid place-items-center bg-zinc-50 dark:bg-zinc-950"
   }, /*#__PURE__*/React.createElement("div", {
@@ -1189,16 +2266,28 @@ function LockScreen({
   }, "Enter PIN"), /*#__PURE__*/React.createElement("input", {
     value: val,
     onChange: e => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)),
+    onKeyDown: e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      }
+    },
     className: "w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-3 py-2 text-center text-2xl tracking-widest"
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn w-full mt-3",
-    onClick: () => tryUnlock(val)
-  }, "Unlock"), /*#__PURE__*/React.createElement("p", {
+    onClick: submit,
+    disabled: working
+  }, working ? "Checking…" : "Unlock"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn w-full mt-2",
+    onClick: useDeviceCredential,
+    disabled: working
+  }, "Use saved device credential"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500 mt-2"
-  }, "Tip: You can remove the PIN later from the header menu.")));
+  }, "Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser\u2019s password manager and may prompt for biometric confirmation.")));
 }
-function buildMetricSeries(data, metricKey) {
-  const metric = METRIC_OPTIONS.find(option => option.value === metricKey);
+function buildMetricSeries(data, metricKey, metricOptions = BASE_METRIC_OPTIONS) {
+  const metric = metricOptions.find(option => option.value === metricKey);
   if (!metric) return {
     daily: [],
     weekly: []
@@ -1275,6 +2364,59 @@ function computeMetricSummary(series, view) {
     lastDate: points[points.length - 1].date,
     averageValue,
     averageLabel
+  };
+}
+function computeMetricStreak(points) {
+  let current = 0;
+  let longest = 0;
+  let prevDate = null;
+  for (const point of points) {
+    const hasPractice = point.value > 0;
+    if (!hasPractice) {
+      current = 0;
+      prevDate = null;
+      continue;
+    }
+    const currentDate = new Date(point.date);
+    if (prevDate) {
+      const diff = Math.round((currentDate - prevDate) / (1000 * 60 * 60 * 24));
+      current = diff === 1 ? current + 1 : 1;
+    } else {
+      current = 1;
+    }
+    prevDate = currentDate;
+    longest = Math.max(longest, current);
+  }
+  return {
+    current,
+    longest
+  };
+}
+function computeMetricHighlights(series, metricConfig, view) {
+  const points = view === "weekly" ? series.weekly : series.daily;
+  if (!points.length) {
+    return {
+      total: 0,
+      maxValue: 0,
+      maxDate: null,
+      currentStreak: 0,
+      longestStreak: 0
+    };
+  }
+  const total = points.reduce((acc, point) => acc + point.value, 0);
+  let maxPoint = points[0];
+  for (const point of points) {
+    if (point.value > maxPoint.value) maxPoint = point;
+  }
+  const streakStats = computeMetricStreak(series.daily);
+  return {
+    total,
+    maxValue: maxPoint.value,
+    maxDate: maxPoint.date,
+    maxEnd: maxPoint.end,
+    currentStreak: streakStats.current,
+    longestStreak: streakStats.longest,
+    unit: metricConfig.unit
   };
 }
 function weekStartISO(dateISO) {
@@ -1371,6 +2513,57 @@ function calcTotals(data) {
     weeklyAccountability: 0
   });
 }
+function calcCustomTotals(data, customMetrics = []) {
+  if (!customMetrics.length) return [];
+  const summary = customMetrics.map(metric => ({
+    id: metric.id,
+    name: metric.name,
+    unit: metric.unit || "",
+    total: 0
+  }));
+  const index = new Map(summary.map(entry => [entry.id, entry]));
+  Object.values(data).forEach(day => {
+    const entries = day.customMetrics || {};
+    for (const metric of customMetrics) {
+      const raw = entries?.[metric.id];
+      const value = typeof raw === "number" ? raw : Number(raw || 0);
+      if (Number.isFinite(value)) {
+        const target = index.get(metric.id);
+        if (target) target.total += value;
+      }
+    }
+  });
+  return summary;
+}
+function summarizeTags(data) {
+  const counts = new Map();
+  Object.values(data).forEach(day => {
+    (day.contextTags || []).forEach(tag => {
+      const normalized = String(tag || "").trim();
+      if (!normalized) return;
+      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    });
+  });
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+}
+function summarizeMood(data) {
+  const counts = new Map();
+  let latest = null;
+  Object.values(data).forEach(day => {
+    if (!day.mood) return;
+    counts.set(day.mood, (counts.get(day.mood) || 0) + 1);
+    if (!latest || day.date && day.date > latest.date) {
+      latest = {
+        date: day.date,
+        mood: day.mood
+      };
+    }
+  });
+  return {
+    counts: Array.from(counts.entries()),
+    latest
+  };
+}
 function calcWeekSummary(data, dateISO) {
   const target = new Date(dateISO);
   if (Number.isNaN(target.getTime())) {
@@ -1459,13 +2652,19 @@ function monthDots(dateISO, data) {
   }
   return arr;
 }
-function toCSV(data) {
-  const header = ["Date", "Scripture", "Notes", "Consecration", "BreathMinutes", "JesusPrayerCount", "Stillness", "BodyBlessing", "Examen", "RosaryDecades", "NightSilence", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability"];
+function toCSV(data, customMetrics = []) {
+  const header = ["Date", "Scripture", "Notes", "Consecration", "BreathMinutes", "JesusPrayerCount", "Stillness", "BodyBlessing", "Examen", "RosaryDecades", "NightSilence", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
+  customMetrics.forEach(metric => header.push(metric.name || metric.id));
   const rows = [header.join(",")];
   const keys = Object.keys(data).sort();
   for (const k of keys) {
     const day = data[k];
-    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0].join(","));
+    const tags = Array.isArray(day.contextTags) ? day.contextTags.join(" ") : "";
+    const mood = day.mood || "";
+    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
+      const raw = day.customMetrics?.[metric.id];
+      return Number(raw ?? 0);
+    })].join(","));
   }
   return rows.join("\n");
 }
