@@ -1,14 +1,11 @@
-const CACHE_NAME = "prayer-tracker-v3";
+const CACHE_NAME = "prayer-tracker-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
-  "https://cdn.tailwindcss.com",
-  "https://unpkg.com/react@18/umd/react.production.min.js",
-  "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
-  "https://unpkg.com/@babel/standalone/babel.min.js"
+  "./favicon.ico"
 ];
 
 self.addEventListener("install", (event) => {
