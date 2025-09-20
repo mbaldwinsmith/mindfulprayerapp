@@ -213,7 +213,13 @@ function App() {
     className: "sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-5xl px-4 py-3 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("h1", {
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "./enso-cross.svg",
+    alt: "Mindfulness and Prayer Tracker logo",
+    className: "h-10 w-10 shrink-0",
+    width: "40",
+    height: "40"
+  }), /*#__PURE__*/React.createElement("h1", {
     className: "text-xl sm:text-2xl font-semibold tracking-tight"
   }, "Mindfulness and Prayer Tracker"), /*#__PURE__*/React.createElement("span", {
     className: "ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"

@@ -180,6 +180,13 @@ function App() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 backdrop-blur bg-white/70 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-3">
+          <img
+            src="./enso-cross.svg"
+            alt="Mindfulness and Prayer Tracker logo"
+            className="h-10 w-10 shrink-0"
+            width="40"
+            height="40"
+          />
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Mindfulness and Prayer Tracker</h1>
           <span className="ml-auto inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
             <button
