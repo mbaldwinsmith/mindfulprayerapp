@@ -642,9 +642,238 @@ const SCRIPTURE_SEED_REFERENCES = [
   "Revelation 22:16-21",
 ];
 
+function buildBibliaUrl(reference) {
+  if (!reference) return null;
+  const cleaned = reference.replace(/\s*\(ESV\)\s*$/i, "").trim();
+  if (!cleaned) return null;
+  const parts = cleaned.split(/\s+/);
+  if (parts.length < 2) return null;
+  let referencePart = parts.pop();
+  const book = parts.join(" ");
+  if (!book) return null;
+  const colonIndex = referencePart.indexOf(":");
+  let chapter = "";
+  let verse = "";
+  if (colonIndex >= 0) {
+    chapter = referencePart.slice(0, colonIndex);
+    verse = referencePart.slice(colonIndex + 1);
+  } else if (/^\d+$/.test(referencePart)) {
+    chapter = referencePart;
+  } else {
+    chapter = "1";
+    verse = referencePart;
+  }
+  const normalizedBook = book.replace(/[^A-Za-z0-9]/g, "");
+  if (!normalizedBook || !chapter) return null;
+  const verseSegment = verse.replace(/\s+/g, "");
+  const path = `${normalizedBook}${chapter}${verseSegment ? `.${verseSegment}` : ""}`;
+  return `https://biblia.com/books/esv/${path}`;
+}
+
+const CATECHISM_BASE_URL = "https://www.vatican.va/archive/ccc_css/archive/catechism/";
+
+const CATECHISM_READINGS = [
+  {
+    slug: "p1s1c1a1",
+    section: "Part One · Section One · Chapter One · Article 1",
+    title: "The Desire for God",
+    summary: "Our longing for truth and happiness is already a response to God's invitation.",
+  },
+  {
+    slug: "p1s1c1a2",
+    section: "Part One · Section One · Chapter One · Article 2",
+    title: "Ways of Coming to Know God",
+    summary: "Creation and the human person point toward the Creator in whom all things hold together.",
+  },
+  {
+    slug: "p1s1c1a3",
+    section: "Part One · Section One · Chapter One · Article 3",
+    title: "The Knowledge of God According to the Church",
+    summary: "Faith and reason together welcome God's self-revelation through history and Scripture.",
+  },
+  {
+    slug: "p1s1c2a1",
+    section: "Part One · Section One · Chapter Two · Article 1",
+    title: "The Revelation of God",
+    summary: "God freely makes Himself known and invites humanity into covenant friendship.",
+  },
+  {
+    slug: "p1s1c2a2",
+    section: "Part One · Section One · Chapter Two · Article 2",
+    title: "The Transmission of Divine Revelation",
+    summary: "Apostolic Tradition and Scripture faithfully hand on the Gospel from age to age.",
+  },
+  {
+    slug: "p1s1c2a3",
+    section: "Part One · Section One · Chapter Two · Article 3",
+    title: "Sacred Scripture",
+    summary: "The inspired Word of God teaches truth for our salvation and nourishes the Church.",
+  },
+  {
+    slug: "p1s1c3a1",
+    section: "Part One · Section One · Chapter Three · Article 1",
+    title: "I Believe",
+    summary: "Faith is a personal adherence to God and a free assent to all He has revealed.",
+  },
+  {
+    slug: "p1s1c3a2",
+    section: "Part One · Section One · Chapter Three · Article 2",
+    title: "We Believe",
+    summary: "The Church, as the Body of Christ, professes a shared faith handed on from the apostles.",
+  },
+  {
+    slug: "p2s1c1a1",
+    section: "Part Two · Section One · Chapter One · Article 1",
+    title: "The Liturgy – Work of the Holy Trinity",
+    summary: "Father, Son, and Spirit draw us into the saving mystery through the Church's worship.",
+  },
+  {
+    slug: "p2s1c1a2",
+    section: "Part Two · Section One · Chapter One · Article 2",
+    title: "The Paschal Mystery in the Church's Sacraments",
+    summary: "Christ's death and resurrection are made present so that grace may bear fruit in us.",
+  },
+  {
+    slug: "p2s1c2a1",
+    section: "Part Two · Section One · Chapter Two · Article 1",
+    title: "Celebrating the Church's Liturgy",
+    summary: "Earthly liturgy joins the heavenly worship as the whole Church participates in Christ's prayer.",
+  },
+  {
+    slug: "p2s1c2a2",
+    section: "Part Two · Section One · Chapter Two · Article 2",
+    title: "Liturgical Diversity and the Unity of the Mystery",
+    summary: "Various rites express the same faith while safeguarding the unity of the sacramental life.",
+  },
+  {
+    slug: "p2s2c1a1",
+    section: "Part Two · Section Two · Chapter One · Article 1",
+    title: "The Sacrament of Baptism",
+    summary: "Through water and the Spirit we are freed from sin and reborn as children of God.",
+  },
+  {
+    slug: "p2s2c1a2",
+    section: "Part Two · Section Two · Chapter One · Article 2",
+    title: "The Sacrament of Confirmation",
+    summary: "The anointing with chrism seals us with the Spirit and strengthens us for mission.",
+  },
+  {
+    slug: "p2s2c1a3",
+    section: "Part Two · Section Two · Chapter One · Article 3",
+    title: "The Most Holy Eucharist",
+    summary: "Christ's Body and Blood nourish the Church and unite us in thanksgiving and communion.",
+  },
+  {
+    slug: "p2s2c2a4",
+    section: "Part Two · Section Two · Chapter Two · Article 4",
+    title: "The Sacrament of Penance and Reconciliation",
+    summary: "In mercy Christ heals our sins and restores us to communion with God and neighbor.",
+  },
+  {
+    slug: "p2s2c2a5",
+    section: "Part Two · Section Two · Chapter Two · Article 5",
+    title: "The Anointing of the Sick",
+    summary: "Christ sustains the suffering with grace, union to His Passion, and hope of healing.",
+  },
+  {
+    slug: "p2s2c3a6",
+    section: "Part Two · Section Two · Chapter Three · Article 6",
+    title: "The Sacrament of Holy Orders",
+    summary: "Through ordination Christ's mission continues in bishops, priests, and deacons.",
+  },
+  {
+    slug: "p2s2c3a7",
+    section: "Part Two · Section Two · Chapter Three · Article 7",
+    title: "The Sacrament of Matrimony",
+    summary: "Marriage images Christ's faithful love and becomes a path of holiness for spouses.",
+  },
+  {
+    slug: "p2s2c4a1",
+    section: "Part Two · Section Two · Chapter Four · Article 1",
+    title: "Sacramentals",
+    summary: "Blessings and sacred signs dispose us to receive grace and sanctify daily life.",
+  },
+  {
+    slug: "p3s1c1a1",
+    section: "Part Three · Section One · Chapter One · Article 1",
+    title: "Man: The Image of God",
+    summary: "Every person shares God's dignity and is called to reflect His love in freedom.",
+  },
+  {
+    slug: "p3s1c1a2",
+    section: "Part Three · Section One · Chapter One · Article 2",
+    title: "Our Vocation to Beatitude",
+    summary: "God invites us into divine happiness through the Beatitudes and life in the Spirit.",
+  },
+  {
+    slug: "p3s1c1a3",
+    section: "Part Three · Section One · Chapter One · Article 3",
+    title: "Man's Freedom",
+    summary: "Freedom flourishes in choosing the good and grows with grace and virtue.",
+  },
+  {
+    slug: "p3s1c1a4",
+    section: "Part Three · Section One · Chapter One · Article 4",
+    title: "The Moral Act",
+    summary: "Human acts are shaped by their object, intention, and circumstances in light of truth.",
+  },
+  {
+    slug: "p3s1c1a5",
+    section: "Part Three · Section One · Chapter One · Article 5",
+    title: "The Morality of the Passions",
+    summary: "Emotions are ordered toward the good when guided by reason and charity.",
+  },
+  {
+    slug: "p3s1c1a6",
+    section: "Part Three · Section One · Chapter One · Article 6",
+    title: "Moral Conscience",
+    summary: "Conscience is the inner sanctuary where we discern God's voice and choose the good.",
+  },
+  {
+    slug: "p3s1c1a7",
+    section: "Part Three · Section One · Chapter One · Article 7",
+    title: "The Virtues",
+    summary: "Theological and moral virtues steady us on the path of holiness and love.",
+  },
+  {
+    slug: "p3s1c1a8",
+    section: "Part Three · Section One · Chapter One · Article 8",
+    title: "Sin",
+    summary: "Sin wounds our communion with God, yet grace offers repentance and new life.",
+  },
+  {
+    slug: "p4s1c1a1",
+    section: "Part Four · Section One · Chapter One · Article 1",
+    title: "Prayer in the Christian Life",
+    summary: "Prayer springs from God's thirst for us and our response of love in faith.",
+  },
+  {
+    slug: "p4s1c2a1",
+    section: "Part Four · Section One · Chapter Two · Article 1",
+    title: "The Revelation of Prayer",
+    summary: "Scripture unveils how God's people learned to pray throughout salvation history.",
+  },
+  {
+    slug: "p4s1c3a1",
+    section: "Part Four · Section One · Chapter Three · Article 1",
+    title: "Expressions of Prayer",
+    summary: "Vocal, meditative, and contemplative prayer draw us into the mystery of God's presence.",
+  },
+  {
+    slug: "p4s1c3a2",
+    section: "Part Four · Section One · Chapter Three · Article 2",
+    title: "The Battle of Prayer",
+    summary: "Perseverance, humility, and trust sustain us amid distractions and spiritual struggle.",
+  },
+].map((entry) => ({
+  ...entry,
+  url: `${CATECHISM_BASE_URL}${entry.slug}.htm`,
+}));
+
 const SCRIPTURE_SEED_PLAN = SCRIPTURE_SEED_REFERENCES.map((reference, index) => ({
   reference: `${reference} (ESV)`,
   focus: SCRIPTURE_FOCUS_ROTATION[index % SCRIPTURE_FOCUS_ROTATION.length],
+  url: buildBibliaUrl(reference),
 }));
 
 function getDayOfYearIndex(dateISO) {
@@ -674,6 +903,13 @@ function getScriptureSeedSuggestion(dateISO) {
   const index = getDayOfYearIndex(dateISO);
   if (Number.isNaN(index)) return null;
   return SCRIPTURE_SEED_PLAN[index % SCRIPTURE_SEED_PLAN.length];
+}
+
+function getCatechismSuggestion(dateISO) {
+  if (!dateISO) return null;
+  const index = getDayOfYearIndex(dateISO);
+  if (Number.isNaN(index)) return null;
+  return CATECHISM_READINGS[index % CATECHISM_READINGS.length];
 }
 
 const LECTIO_PROMPTS = [
@@ -1422,6 +1658,7 @@ function App() {
   );
   const rosaryMystery = useMemo(() => getRosaryMysteryForDate(date), [date]);
   const scriptureSuggestion = useMemo(() => getScriptureSeedSuggestion(date), [date]);
+  const catechismSuggestion = useMemo(() => getCatechismSuggestion(date), [date]);
 
   const cycleSpotlight = useCallback(() => {
     updatePreferences((prev) => ({
@@ -1591,7 +1828,10 @@ function App() {
               className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="E.g., ‘Blessed are the pure in heart…’ (Matt 5:8)"
             />
-            <ScriptureSeedSuggestion suggestion={scriptureSuggestion} />
+            <ScriptureSeedSuggestion
+              suggestion={scriptureSuggestion}
+              catechism={catechismSuggestion}
+            />
             {preferences.showGuidedPrompts && (
               <GuidedPrompt title="Lectio divina prompt" prompts={LECTIO_PROMPTS} />
             )}
@@ -1788,6 +2028,18 @@ function App() {
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                     <span>Accountability</span>
                     <span className="tabular-nums font-semibold">{totals.weeklyAccountability}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Sabbath rest</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklySabbath}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Service / mercy outreach</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyService}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Spiritual direction check-in</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyDirection}</span>
                   </div>
                 </div>
               </div>
@@ -2328,13 +2580,44 @@ function RosaryMysteryNote({ mystery }) {
   );
 }
 
-function ScriptureSeedSuggestion({ suggestion }) {
+function ScriptureSeedSuggestion({ suggestion, catechism }) {
   if (!suggestion) return null;
+  const scriptureLink = suggestion.url;
   return (
-    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
-      <div className="text-sm font-semibold">Suggested reading</div>
-      <div className="mt-1 font-medium">{suggestion.reference}</div>
-      <p className="mt-1 italic">{suggestion.focus}</p>
+    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100">
+      <div className="text-sm font-semibold">Suggested scripture reading</div>
+      {scriptureLink ? (
+        <a
+          href={scriptureLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-flex font-medium text-emerald-700 underline decoration-emerald-400/60 decoration-2 underline-offset-2 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+        >
+          {suggestion.reference}
+        </a>
+      ) : (
+        <div className="mt-1 font-medium">{suggestion.reference}</div>
+      )}
+      {suggestion.focus ? <p className="mt-1 italic">{suggestion.focus}</p> : null}
+      {catechism ? (
+        <div className="mt-3 border-t border-emerald-200 pt-3 dark:border-emerald-900/70">
+          <div className="text-sm font-semibold">Catechism of the Catholic Church</div>
+          <a
+            href={catechism.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-flex font-medium text-emerald-700 underline decoration-emerald-400/60 decoration-2 underline-offset-2 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+          >
+            {catechism.section}
+          </a>
+          <p className="mt-1 font-semibold">{catechism.title}</p>
+          {catechism.summary ? (
+            <p className="mt-1 text-[13px] leading-relaxed text-emerald-700 dark:text-emerald-200/80">
+              {catechism.summary}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -3445,6 +3728,9 @@ function calcTotals(data) {
       if (weekly.confession) acc.weeklyConfession += 1;
       if (weekly.fasting) acc.weeklyFasting += 1;
       if (weekly.accountability) acc.weeklyAccountability += 1;
+      if (weekly.sabbath) acc.weeklySabbath += 1;
+      if (weekly.service) acc.weeklyService += 1;
+      if (weekly.direction) acc.weeklyDirection += 1;
 
       return acc;
     },
@@ -3464,6 +3750,9 @@ function calcTotals(data) {
       weeklyConfession: 0,
       weeklyFasting: 0,
       weeklyAccountability: 0,
+      weeklySabbath: 0,
+      weeklyService: 0,
+      weeklyDirection: 0,
     },
   );
 }
