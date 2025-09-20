@@ -35,6 +35,53 @@ const STORE_KEY = "zc_tracker_v1";
 const PIN_KEY   = "zc_pin_v1";
 const THEME_KEY = "zc_theme";
 
+const blankDay = (date) => ({
+      date,
+      scripture: "",
+      notes: "",
+      morning: { consecration: false, breathMinutes: 0, jesusPrayerCount: 0 },
+      midday: { stillness: false, bodyBlessing: false },
+      evening: { examen: false, rosaryDecades: 0, nightSilence: false },
+      temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
+      weekly: { mass: false, confession: false, fasting: false, accountability: false },
+    });
+
+function normalizeDay(input) {
+      const d = input || {};
+      return {
+        date: d.date || todayISO(),
+        scripture: d.scripture ?? "",
+        notes: d.notes ?? "",
+        morning: {
+          consecration: d.morning?.consecration ?? false,
+          breathMinutes: d.morning?.breathMinutes ?? 0,
+          jesusPrayerCount: d.morning?.jesusPrayerCount ?? 0,
+        },
+        midday: {
+          stillness: d.midday?.stillness ?? false,
+          bodyBlessing: d.midday?.bodyBlessing ?? false,
+        },
+        evening: {
+          examen: d.evening?.examen ?? false,
+          rosaryDecades: d.evening?.rosaryDecades ?? 0,
+          nightSilence: d.evening?.nightSilence ?? false,
+        },
+        temptations: {
+          urgesNoted: d.temptations?.urgesNoted ?? 0,
+          lapses: d.temptations?.lapses ?? 0,
+          victories: d.temptations?.victories ?? 0,
+        },
+        weekly: {
+          mass: d.weekly?.mass ?? false,
+          confession: d.weekly?.confession ?? false,
+          fasting: d.weekly?.fasting ?? false,
+          accountability: d.weekly?.accountability ?? false,
+        },
+      };
+    }
+
+
+
 
 
 
@@ -79,20 +126,10 @@ const THEME_KEY = "zc_theme";
       }
     }
 
-    const blankDay = (date) => ({
-      date,
-      scripture: "",
-      notes: "",
-      morning: { consecration: false, breathMinutes: 0, jesusPrayerCount: 0 },
-      midday: { stillness: false, bodyBlessing: false },
-      evening: { examen: false, rosaryDecades: 0, nightSilence: false },
-      temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
-      weekly: { mass: false, confession: false, fasting: false, accountability: false },
-    });
+    
 
     // Added: normalize missing fields from older saved data
-    function normalizeDay(input) {
-      const d = input || {};
+    ;
       return {
         date: d.date || todayISO(),
         scripture: d.scripture ?? "",
