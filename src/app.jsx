@@ -168,6 +168,7 @@ function App() {
 
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
+  const longestStreak = useMemo(() => calcLongestStreak(data), [data]);
   const totals = useMemo(() => calcTotals(data), [data]);
 
   useEffect(() => {
@@ -305,6 +306,9 @@ function App() {
             <div className="text-sm grid gap-2">
               <div>
                 Current streak: <b>{streak} day{streak === 1 ? "" : "s"}</b>
+                <span className="ml-1 text-zinc-500 dark:text-zinc-400">
+                  Personal best: <b>{longestStreak} day{longestStreak === 1 ? "" : "s"}</b>
+                </span>
               </div>
               <div>Total breath meditation: <b>{totals.breathMinutes}</b> min</div>
               <div>Total Jesus Prayer: <b>{totals.jesusPrayerCount}</b></div>
@@ -799,6 +803,37 @@ function calcStreak(data) {
     d.setDate(d.getDate() - 1);
   }
   return count;
+}
+
+function calcLongestStreak(data) {
+  const dates = Object.keys(data).sort();
+  let longest = 0;
+  let current = 0;
+  let prevDateWithPractice = null;
+
+  for (const key of dates) {
+    const day = data[key];
+    const practiced = anyPracticeDone(day);
+    const currentDate = new Date(key);
+
+    if (!practiced) {
+      current = 0;
+      prevDateWithPractice = null;
+      continue;
+    }
+
+    if (prevDateWithPractice) {
+      const diff = Math.round((currentDate - prevDateWithPractice) / (1000 * 60 * 60 * 24));
+      current = diff === 1 ? current + 1 : 1;
+    } else {
+      current = 1;
+    }
+
+    longest = Math.max(longest, current);
+    prevDateWithPractice = currentDate;
+  }
+
+  return longest;
 }
 
 function calcTotals(data) {
