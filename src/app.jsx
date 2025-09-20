@@ -364,6 +364,12 @@ function App() {
                   </span>
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span>Longest streak</span>
+                  <span className="tabular-nums font-semibold">
+                    {longestStreak} day{longestStreak === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                   <span>Breath meditation (min)</span>
                   <span className="tabular-nums font-semibold">{totals.breathMinutes}</span>
                 </div>
