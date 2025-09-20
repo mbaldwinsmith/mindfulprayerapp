@@ -197,6 +197,7 @@ function App() {
   const [date, setDate] = useState(todayISO());
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
+  const longestStreak = useMemo(() => calcLongestStreak(data), [data]);
   const totals = useMemo(() => calcTotals(data), [data]);
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
   const weekStartLabel = useMemo(() => {
@@ -409,8 +410,90 @@ function App() {
   }))))), /*#__PURE__*/React.createElement(Card, {
     title: "Stats"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm grid gap-2"
-  }, /*#__PURE__*/React.createElement("div", null, "Current streak: ", /*#__PURE__*/React.createElement("b", null, streak, " day", streak === 1 ? "" : "s")), /*#__PURE__*/React.createElement("div", null, "Total breath meditation: ", /*#__PURE__*/React.createElement("b", null, totals.breathMinutes), " min"), /*#__PURE__*/React.createElement("div", null, "Total Jesus Prayer: ", /*#__PURE__*/React.createElement("b", null, totals.jesusPrayerCount)), /*#__PURE__*/React.createElement("div", null, "Total rosary decades: ", /*#__PURE__*/React.createElement("b", null, totals.rosaryDecades)), /*#__PURE__*/React.createElement("div", null, "Victories over urges: ", /*#__PURE__*/React.createElement("b", null, totals.victories), " | Lapses: ", /*#__PURE__*/React.createElement("b", null, totals.lapses)))), /*#__PURE__*/React.createElement(Card, {
+    className: "text-sm grid gap-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Current streak"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, streak, " day", streak === 1 ? "" : "s")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Longest streak"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, longestStreak, " day", longestStreak === 1 ? "" : "s")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Breath meditation (min)"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.breathMinutes)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Jesus Prayer (count)"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.jesusPrayerCount)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Rosary decades"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.rosaryDecades)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Urges noted"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.urgesNoted)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Victories over urges"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.victories)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Lapses"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.lapses))), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+  }, "Daily practices completed"), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Morning consecration"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.morningConsecration)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Midday stillness pause"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.middayStillness)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Body blessing"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.middayBodyBlessing)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Evening examen"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.eveningExamen)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Silence before sleep"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.eveningNightSilence)))), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+  }, "Weekly anchors completed"), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Mass"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyMass)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Confession"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyConfession)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Fasting"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyFasting)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Accountability"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyAccountability)))))), /*#__PURE__*/React.createElement(Card, {
     title: "Backup / Restore"
   }, /*#__PURE__*/React.createElement(BackupControls, {
     data: data,
@@ -893,20 +976,70 @@ function calcStreak(data) {
   }
   return count;
 }
+function calcLongestStreak(data) {
+  const dates = Object.keys(data).sort();
+  let longest = 0;
+  let current = 0;
+  let prevDateWithPractice = null;
+  for (const key of dates) {
+    const day = data[key];
+    const practiced = anyPracticeDone(day);
+    const currentDate = new Date(key);
+    if (!practiced) {
+      current = 0;
+      prevDateWithPractice = null;
+      continue;
+    }
+    if (prevDateWithPractice) {
+      const diff = Math.round((currentDate - prevDateWithPractice) / (1000 * 60 * 60 * 24));
+      current = diff === 1 ? current + 1 : 1;
+    } else {
+      current = 1;
+    }
+    longest = Math.max(longest, current);
+    prevDateWithPractice = currentDate;
+  }
+  return longest;
+}
 function calcTotals(data) {
   return Object.values(data).reduce((acc, d) => {
-    acc.breathMinutes += d.morning?.breathMinutes || 0;
-    acc.jesusPrayerCount += d.morning?.jesusPrayerCount || 0;
-    acc.rosaryDecades += d.evening?.rosaryDecades || 0;
-    acc.victories += d.temptations?.victories || 0;
-    acc.lapses += d.temptations?.lapses || 0;
+    const morning = d.morning ?? {};
+    const midday = d.midday ?? {};
+    const evening = d.evening ?? {};
+    const temptations = d.temptations ?? {};
+    const weekly = d.weekly ?? {};
+    acc.breathMinutes += morning.breathMinutes || 0;
+    acc.jesusPrayerCount += morning.jesusPrayerCount || 0;
+    acc.rosaryDecades += evening.rosaryDecades || 0;
+    acc.victories += temptations.victories || 0;
+    acc.lapses += temptations.lapses || 0;
+    acc.urgesNoted += temptations.urgesNoted || 0;
+    if (morning.consecration) acc.morningConsecration += 1;
+    if (midday.stillness) acc.middayStillness += 1;
+    if (midday.bodyBlessing) acc.middayBodyBlessing += 1;
+    if (evening.examen) acc.eveningExamen += 1;
+    if (evening.nightSilence) acc.eveningNightSilence += 1;
+    if (weekly.mass) acc.weeklyMass += 1;
+    if (weekly.confession) acc.weeklyConfession += 1;
+    if (weekly.fasting) acc.weeklyFasting += 1;
+    if (weekly.accountability) acc.weeklyAccountability += 1;
     return acc;
   }, {
     breathMinutes: 0,
     jesusPrayerCount: 0,
     rosaryDecades: 0,
     victories: 0,
-    lapses: 0
+    lapses: 0,
+    urgesNoted: 0,
+    morningConsecration: 0,
+    middayStillness: 0,
+    middayBodyBlessing: 0,
+    eveningExamen: 0,
+    eveningNightSilence: 0,
+    weeklyMass: 0,
+    weeklyConfession: 0,
+    weeklyFasting: 0,
+    weeklyAccountability: 0
   });
 }
 function calcWeekSummary(data, dateISO) {
