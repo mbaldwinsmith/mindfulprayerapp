@@ -1669,7 +1669,12 @@ function App() {
       }
     }))
   }), /*#__PURE__*/React.createElement(ToggleRow, {
-    label: "Examen with Compassion",
+    label: /*#__PURE__*/React.createElement("a", {
+      href: "https://www.ignatianspirituality.com/ignatian-prayer/the-examen/how-can-i-pray/",
+      target: "_blank",
+      rel: "noopener noreferrer",
+      className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+    }, "Examen with Compassion"),
     checked: d.evening.examen,
     onChange: v => setDay(date, x => ({
       ...x,
@@ -1678,6 +1683,9 @@ function App() {
         examen: v
       }
     }))
+  }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
+    title: "Gentle examen",
+    prompts: EXAMEN_PROMPTS
   }), /*#__PURE__*/React.createElement(StepperRow, {
     label: "Rosary (decades)",
     value: d.evening.rosaryDecades,
@@ -1692,9 +1700,6 @@ function App() {
     }))
   }), /*#__PURE__*/React.createElement(RosaryMysteryNote, {
     mystery: rosaryMystery
-  }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
-    title: "Gentle examen",
-    prompts: EXAMEN_PROMPTS
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: "Silence Before Sleep",
     checked: d.evening.nightSilence,
