@@ -82,6 +82,7 @@ const blankDay = (date) => ({
   temptations: { urgesNoted: 0, lapses: 0, victories: 0 },
   weekly: {
     mass: false,
+    adoration: false,
     confession: false,
     fasting: false,
     accountability: false,
@@ -140,6 +141,7 @@ async function decryptJSON(key, payload) {
 
 const WEEKLY_ANCHORS = [
   { key: "mass", label: "Sunday Mass" },
+  { key: "adoration", label: "Eucharistic adoration" },
   { key: "confession", label: "Confession" },
   { key: "fasting", label: "Fasting / abstinence" },
   { key: "accountability", label: "Accountability check-in" },
@@ -1206,6 +1208,7 @@ const normalizeDay = (input = {}) => ({
   },
   weekly: {
     mass: input.weekly?.mass ?? false,
+    adoration: input.weekly?.adoration ?? false,
     confession: input.weekly?.confession ?? false,
     fasting: input.weekly?.fasting ?? false,
     accountability: input.weekly?.accountability ?? false,
@@ -2289,6 +2292,10 @@ function App() {
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                     <span>Mass</span>
                     <span className="tabular-nums font-semibold">{totals.weeklyMass}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                    <span>Eucharistic adoration</span>
+                    <span className="tabular-nums font-semibold">{totals.weeklyAdoration}</span>
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
                     <span>Confession</span>
@@ -4026,6 +4033,7 @@ function calcTotals(data) {
       if (evening.gratitudePrayer) acc.eveningGratitudePrayer += 1;
 
       if (weekly.mass) acc.weeklyMass += 1;
+      if (weekly.adoration) acc.weeklyAdoration += 1;
       if (weekly.confession) acc.weeklyConfession += 1;
       if (weekly.fasting) acc.weeklyFasting += 1;
       if (weekly.accountability) acc.weeklyAccountability += 1;
@@ -4055,6 +4063,7 @@ function calcTotals(data) {
       eveningActOfContrition: 0,
       eveningGratitudePrayer: 0,
       weeklyMass: 0,
+      weeklyAdoration: 0,
       weeklyConfession: 0,
       weeklyFasting: 0,
       weeklyAccountability: 0,
@@ -4220,6 +4229,7 @@ function toCSV(data, customMetrics = []) {
     "Victories",
     "Lapses",
     "Mass",
+    "Adoration",
     "Confession",
     "Fasting",
     "Accountability",
@@ -4257,6 +4267,7 @@ function toCSV(data, customMetrics = []) {
         day.temptations.victories,
         day.temptations.lapses,
         day.weekly.mass ? 1 : 0,
+        day.weekly.adoration ? 1 : 0,
         day.weekly.confession ? 1 : 0,
         day.weekly.fasting ? 1 : 0,
         day.weekly.accountability ? 1 : 0,

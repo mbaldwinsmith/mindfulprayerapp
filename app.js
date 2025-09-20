@@ -84,6 +84,7 @@ const blankDay = date => ({
   },
   weekly: {
     mass: false,
+    adoration: false,
     confession: false,
     fasting: false,
     accountability: false,
@@ -140,6 +141,9 @@ async function decryptJSON(key, payload) {
 const WEEKLY_ANCHORS = [{
   key: "mass",
   label: "Sunday Mass"
+}, {
+  key: "adoration",
+  label: "Eucharistic adoration"
 }, {
   key: "confession",
   label: "Confession"
@@ -705,6 +709,7 @@ const normalizeDay = (input = {}) => ({
   },
   weekly: {
     mass: input.weekly?.mass ?? false,
+    adoration: input.weekly?.adoration ?? false,
     confession: input.weekly?.confession ?? false,
     fasting: input.weekly?.fasting ?? false,
     accountability: input.weekly?.accountability ?? false,
@@ -1806,6 +1811,10 @@ function App() {
   }, /*#__PURE__*/React.createElement("span", null, "Mass"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
   }, totals.weeklyMass)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Eucharistic adoration"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyAdoration)), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Confession"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
@@ -3416,6 +3425,7 @@ function calcTotals(data) {
     if (evening.actOfContrition) acc.eveningActOfContrition += 1;
     if (evening.gratitudePrayer) acc.eveningGratitudePrayer += 1;
     if (weekly.mass) acc.weeklyMass += 1;
+    if (weekly.adoration) acc.weeklyAdoration += 1;
     if (weekly.confession) acc.weeklyConfession += 1;
     if (weekly.fasting) acc.weeklyFasting += 1;
     if (weekly.accountability) acc.weeklyAccountability += 1;
@@ -3443,6 +3453,7 @@ function calcTotals(data) {
     eveningActOfContrition: 0,
     eveningGratitudePrayer: 0,
     weeklyMass: 0,
+    weeklyAdoration: 0,
     weeklyConfession: 0,
     weeklyFasting: 0,
     weeklyAccountability: 0,
@@ -3591,7 +3602,7 @@ function monthDots(dateISO, data) {
   return arr;
 }
 function toCSV(data, customMetrics = []) {
-  const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "MorningBenedictus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "EveningMagnificat", "RosaryDecades", "NightSilence", "ActOfContrition", "GratitudePrayer", "UrgesNoted", "Victories", "Lapses", "Mass", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
+  const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "MorningBenedictus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "EveningMagnificat", "RosaryDecades", "NightSilence", "ActOfContrition", "GratitudePrayer", "UrgesNoted", "Victories", "Lapses", "Mass", "Adoration", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
   customMetrics.forEach(metric => header.push(metric.name || metric.id));
   const rows = [header.join(",")];
   const keys = Object.keys(data).sort();
@@ -3599,7 +3610,7 @@ function toCSV(data, customMetrics = []) {
     const day = data[k];
     const tags = Array.isArray(day.contextTags) ? day.contextTags.join(" ") : "";
     const mood = day.mood || "";
-    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.angelus ? 1 : 0, day.morning.benedictus ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.angelus ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.angelus ? 1 : 0, day.evening.magnificat ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.evening.actOfContrition ? 1 : 0, day.evening.gratitudePrayer ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
+    rows.push([day.date, csvQuote(day.scripture), csvQuote(day.notes), day.morning.consecration ? 1 : 0, day.morning.angelus ? 1 : 0, day.morning.benedictus ? 1 : 0, day.morning.breathMinutes, day.morning.jesusPrayerCount, day.midday.stillness ? 1 : 0, day.midday.angelus ? 1 : 0, day.midday.bodyBlessing ? 1 : 0, day.evening.examen ? 1 : 0, day.evening.angelus ? 1 : 0, day.evening.magnificat ? 1 : 0, day.evening.rosaryDecades, day.evening.nightSilence ? 1 : 0, day.evening.actOfContrition ? 1 : 0, day.evening.gratitudePrayer ? 1 : 0, day.temptations.urgesNoted, day.temptations.victories, day.temptations.lapses, day.weekly.mass ? 1 : 0, day.weekly.adoration ? 1 : 0, day.weekly.confession ? 1 : 0, day.weekly.fasting ? 1 : 0, day.weekly.accountability ? 1 : 0, mood, csvQuote(tags), ...customMetrics.map(metric => {
       const raw = day.customMetrics?.[metric.id];
       return Number(raw ?? 0);
     })].join(","));
