@@ -195,8 +195,6 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 grid gap-6">
-        <TopNav date={date} setDate={setDate} data={data} />
-
         <div className="grid md:grid-cols-3 gap-6">
           <Card title="Morning">
             <ToggleRow
@@ -323,6 +321,8 @@ function App() {
             </div>
           </Card>
         </div>
+
+        <TopNav date={date} setDate={setDate} data={data} />
 
         <footer className="pt-2 pb-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
           Built for Mark — “see clearly, return gently, offer everything to Christ.”
