@@ -226,11 +226,7 @@ function App() {
     updatePIN: updatePIN
   })))), /*#__PURE__*/React.createElement("main", {
     className: "mx-auto max-w-5xl px-4 py-6 grid gap-6"
-  }, /*#__PURE__*/React.createElement(TopNav, {
-    date: date,
-    setDate: setDate,
-    data: data
-  }), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: "grid md:grid-cols-3 gap-6"
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Morning"
@@ -382,7 +378,11 @@ function App() {
     onClick: resetApp
   }, "Reset App (export \u2192 clear \u2192 reload)"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
-  }, "This will optionally back up your data as JSON, then clear local storage and unregister the service worker before reloading.")))), /*#__PURE__*/React.createElement("footer", {
+  }, "This will optionally back up your data as JSON, then clear local storage and unregister the service worker before reloading.")))), /*#__PURE__*/React.createElement(TopNav, {
+    date: date,
+    setDate: setDate,
+    data: data
+  }), /*#__PURE__*/React.createElement("footer", {
     className: "pt-2 pb-8 text-center text-xs text-zinc-500 dark:text-zinc-400"
   }, "Built for Mark \u2014 \u201Csee clearly, return gently, offer everything to Christ.\u201D")));
 }
