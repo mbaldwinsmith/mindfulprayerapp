@@ -2171,10 +2171,20 @@ function App() {
                   onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, magnificat: v } }))}
                 />
                 <ToggleRow
-                  label="Examen with Compassion"
+                  label={
+                    <a
+                      href="https://www.ignatianspirituality.com/ignatian-prayer/the-examen/how-can-i-pray/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Examen with Compassion
+                    </a>
+                  }
                   checked={d.evening.examen}
                   onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, examen: v } }))}
                 />
+                {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
                 <StepperRow
                   label="Rosary (decades)"
                   value={d.evening.rosaryDecades}
@@ -2183,7 +2193,6 @@ function App() {
                   onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))}
                 />
                 <RosaryMysteryNote mystery={rosaryMystery} />
-                {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
                 <ToggleRow
                   label="Silence Before Sleep"
                   checked={d.evening.nightSilence}
