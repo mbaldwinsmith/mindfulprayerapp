@@ -198,6 +198,60 @@ const DEFAULT_PREFERENCES = {
   tomorrowPlan: "",
 };
 
+const AFFIRMATION_MESSAGES = [
+  "Well done — you returned to stillness today.",
+  "Remember, even one breath of prayer is beloved by God.",
+  "Grace meets you in this quiet — thank you for pausing.",
+];
+
+const TIMER_AFFIRMATIONS = [
+  (mins) => `Well done — you rested with Christ for ${mins} minute${mins === 1 ? "" : "s"}.`,
+  (mins) => `Each quiet breath matters. Logged ${mins} mindful minute${mins === 1 ? "" : "s"}.`,
+  (mins) => `You offered ${mins} minute${mins === 1 ? "" : "s"} of steady prayer. God delights in your return.`,
+];
+
+const STREAK_AFFIRMATIONS = [
+  (streak) => `You’ve tended prayer for ${streak} day${streak === 1 ? "" : "s"} in a row. Keep returning gently.`,
+  (streak) => `Beautiful — a ${streak}-day rhythm of prayer and presence.`,
+  (streak) => `Christ holds your ${streak}-day streak with joy.`,
+];
+
+function pickRandomEntry(list) {
+  if (!Array.isArray(list) || !list.length) return null;
+  const index = Math.floor(Math.random() * list.length);
+  return list[index];
+}
+
+let chimeAudioContext = null;
+async function playChime() {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!chimeAudioContext) {
+      chimeAudioContext = new AudioCtx();
+    }
+    if (chimeAudioContext.state === "suspended") {
+      await chimeAudioContext.resume();
+    }
+    const ctx = chimeAudioContext;
+    const now = ctx.currentTime;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(660, now);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
+    oscillator.start(now);
+    oscillator.stop(now + 1.4);
+  } catch (error) {
+    // Silently ignore audio errors (e.g., autoplay restrictions).
+  }
+}
+
 const MARIAN_CONSECRATION_URL =
   "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/";
 const ANGELUS_PRAYER_URL = "https://theangelusprayer.com/angelus-prayer/";
@@ -1683,6 +1737,9 @@ function App() {
   const [selectedMetric, setSelectedMetric] = useState(() => metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
   const [metricView, setMetricView] = useState("daily");
   const [historyTag, setHistoryTag] = useState("");
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [affirmation, setAffirmation] = useState("");
+  const timerCardRef = useRef(null);
 
   const historyLimit = 10;
 
@@ -1695,6 +1752,17 @@ function App() {
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
   const longestStreak = useMemo(() => calcLongestStreak(data), [data]);
+  const hasActivityToday = useMemo(() => dayHasActivity(d), [d]);
+  const prevActivityRef = useRef(hasActivityToday);
+  const prevStreakRef = useRef(streak);
+  const skipNextAffirmationRef = useRef(false);
+  const showAffirmation = useCallback((message, options = {}) => {
+    if (!message) return;
+    setAffirmation(message);
+    if (options.suppressAutoNext) {
+      skipNextAffirmationRef.current = true;
+    }
+  }, []);
   const totals = useMemo(() => calcTotals(data), [data]);
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
   const metricConfig = useMemo(
@@ -1754,6 +1822,62 @@ function App() {
   const rosaryMystery = useMemo(() => getRosaryMysteryForDate(date), [date]);
   const scriptureSuggestion = useMemo(() => getScriptureSeedSuggestion(date), [date]);
   const catechismSuggestion = useMemo(() => getCatechismSuggestion(date), [date]);
+
+  useEffect(() => {
+    if (!prevActivityRef.current && hasActivityToday) {
+      if (skipNextAffirmationRef.current) {
+        skipNextAffirmationRef.current = false;
+      } else {
+        const message = pickRandomEntry(AFFIRMATION_MESSAGES);
+        if (message) showAffirmation(message);
+      }
+    }
+    prevActivityRef.current = hasActivityToday;
+  }, [hasActivityToday, showAffirmation]);
+
+  useEffect(() => {
+    if (streak > prevStreakRef.current && streak > 0) {
+      const template = pickRandomEntry(STREAK_AFFIRMATIONS);
+      const message = typeof template === "function" ? template(streak) : template;
+      if (message) showAffirmation(message);
+    }
+    prevStreakRef.current = streak;
+  }, [streak, showAffirmation]);
+
+  const handleBeginSession = useCallback(() => {
+    setShowSessionModal(true);
+    void playChime();
+    if (timerCardRef.current && typeof timerCardRef.current.scrollIntoView === "function") {
+      timerCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  const handleSessionClose = useCallback(() => {
+    setShowSessionModal(false);
+  }, []);
+
+  const handleDismissAffirmation = useCallback(() => {
+    setAffirmation("");
+  }, []);
+
+  const handleMeditationFinish = useCallback(
+    (mins) => {
+      if (!mins) return;
+      setDay(date, (existing) => ({
+        ...existing,
+        morning: {
+          ...existing.morning,
+          breathMinutes: (existing.morning?.breathMinutes || 0) + mins,
+        },
+      }));
+      const template = pickRandomEntry(TIMER_AFFIRMATIONS);
+      const message = typeof template === "function" ? template(mins) : template;
+      const fallback = pickRandomEntry(AFFIRMATION_MESSAGES);
+      showAffirmation(message ?? fallback, { suppressAutoNext: true });
+      void playChime();
+    },
+    [date, setDay, showAffirmation],
+  );
 
   const cycleSpotlight = useCallback(() => {
     updatePreferences((prev) => ({
@@ -1819,257 +1943,295 @@ function App() {
         </header>
 
         <main className="relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8">
-        <ReminderBanner
-          reminder={activeReminder}
-          onComplete={markReminderDone}
-          onSnooze={(id) => snoozeReminder(id, 10)}
-        />
-        <PracticeSpotlight spotlight={spotlight} onNext={cycleSpotlight} />
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card title="Morning — Awakening in Christ">
-            <ToggleRow
-              label={
-                <a
-                  href={MARIAN_CONSECRATION_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+          <section className="glass-card welcome-card">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex-1">
+                <div className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-700/80 dark:text-emerald-200/80">
+                  Welcome
+                </div>
+                <h2 className="mt-2 text-2xl font-semibold text-emerald-900 dark:text-emerald-100">
+                  Cultivate mindful prayer today
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+                  This app helps you cultivate mindful prayer. Record your moments of stillness, track your rhythm, and return often.
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+                  Use Today’s Practice to mark the rhythm, Reflection &amp; Journal to linger with Scripture, and History &amp; Insights to notice how grace unfolds.
+                </p>
+              </div>
+              <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleBeginSession}
+                  className="rounded-full bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
-                  Consecration to the Virgin Mary
-                </a>
-              }
-              checked={d.morning.consecration}
-              onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, consecration: v } }))}
-            />
-            <ToggleRow
-              label={
-                <a
-                  href={ANGELUS_PRAYER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  Angelus Prayer
-                </a>
-              }
-              checked={d.morning.angelus}
-              onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, angelus: v } }))}
-            />
-            <ToggleRow
-              label={
-                <a
-                  href={BENEDICTUS_PRAYER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  Recite the Benedictus
-                </a>
-              }
-              checked={d.morning.benedictus}
-              onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, benedictus: v } }))}
-            />
-            <TimerRow
-              label={
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="cursor-help underline decoration-dotted underline-offset-2"
-                    title={BREATHE_MEDITATION_TOOLTIP}
-                  >
-                    Breathe Meditation (min)
-                  </span>
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
-                    title={BREATHE_MEDITATION_TOOLTIP}
-                    aria-hidden="true"
-                  >
-                    ?
-                  </span>
+                  Begin Prayer Session
+                </button>
+                <span className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+                  Opens a gentle timer for contemplative breath prayer.
                 </span>
-              }
-              minutes={d.morning.breathMinutes}
-              onChange={(m) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, breathMinutes: clamp(m, 0, 600) } }))}
-            />
-            <CounterRow
-              label={
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="cursor-help underline decoration-dotted underline-offset-2"
-                    title={JESUS_PRAYER_TOOLTIP}
-                  >
-                    Jesus Prayer (count)
-                  </span>
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
-                    title={JESUS_PRAYER_TOOLTIP}
-                    aria-hidden="true"
-                  >
-                    ?
-                  </span>
-                </span>
-              }
-              value={d.morning.jesusPrayerCount}
-              onChange={(n) => setDay(date, (x) => ({
-                ...x,
-                morning: { ...x.morning, jesusPrayerCount: clamp(n, 0, 100000) },
-              }))}
-            />
-          </Card>
+              </div>
+            </div>
+          </section>
 
-          <Card title="Midday — Re-centring on Christ">
-            <ToggleRow
-              label={
-                <a
-                  href={ANGELUS_PRAYER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  Angelus Prayer
-                </a>
-              }
-              checked={d.midday.angelus}
-              onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, angelus: v } }))}
-            />
-            <ToggleRow
-              label={
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="cursor-help underline decoration-dotted underline-offset-2"
-                    title={STILLNESS_PAUSE_TOOLTIP}
-                  >
-                    Stillness Pause
-                  </span>
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
-                    title={STILLNESS_PAUSE_TOOLTIP}
-                    aria-hidden="true"
-                  >
-                    ?
-                  </span>
-                </span>
-              }
-              checked={d.midday.stillness}
-              onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, stillness: v } }))}
-            />
-            <ToggleRow
-              label={
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="cursor-help underline decoration-dotted underline-offset-2"
-                    title={BODY_BLESSING_TOOLTIP}
-                  >
-                    Body Blessing
-                  </span>
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
-                    title={BODY_BLESSING_TOOLTIP}
-                    aria-hidden="true"
-                  >
-                    ?
-                  </span>
-                </span>
-              }
-              checked={d.midday.bodyBlessing}
-              onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, bodyBlessing: v } }))}
-            />
-            <TemptationBox date={date} d={d} setDay={setDay} />
-            <CustomMetricInputs
-              date={date}
-              day={d}
-              setDay={setDay}
-              customMetrics={preferences.customMetrics}
-            />
-          </Card>
+          <AffirmationBanner message={affirmation} onDismiss={handleDismissAffirmation} />
 
-          <Card title="Evening — Resting in Christ">
-            <ToggleRow
-              label={
-                <a
-                  href={ANGELUS_PRAYER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  Angelus Prayer
-                </a>
-              }
-              checked={d.evening.angelus}
-              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, angelus: v } }))}
-            />
-            <ToggleRow
-              label={
-                <a
-                  href={MAGNIFICAT_PRAYER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  Recite the Magnificat
-                </a>
-              }
-              checked={d.evening.magnificat}
-              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, magnificat: v } }))}
-            />
-            <ToggleRow
-              label="Examen with Compassion"
-              checked={d.evening.examen}
-              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, examen: v } }))}
-            />
-            <StepperRow
-              label="Rosary (decades)"
-              value={d.evening.rosaryDecades}
-              min={0}
-              max={5}
-              onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))}
-            />
-            <RosaryMysteryNote mystery={rosaryMystery} />
-            {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
-            <ToggleRow
-              label="Silence Before Sleep"
-              checked={d.evening.nightSilence}
-              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, nightSilence: v } }))}
-            />
-            <ToggleRow
-              label={
-                <a
-                  href={ACT_OF_CONTRITION_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
-                >
-                  Act of Contrition
-                </a>
-              }
-              checked={d.evening.actOfContrition}
-              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, actOfContrition: v } }))}
-            />
-            <ToggleRow
-              label={
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="cursor-help underline decoration-dotted underline-offset-2"
-                    title={GRATITUDE_PRAYER_TOOLTIP}
-                  >
-                    Gratitude Prayer
-                  </span>
-                  <span
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
-                    title={GRATITUDE_PRAYER_TOOLTIP}
-                    aria-hidden="true"
-                  >
-                    ?
-                  </span>
-                </span>
-              }
-              checked={d.evening.gratitudePrayer}
-              onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, gratitudePrayer: v } }))}
-            />
-          </Card>
-        </div>
+          <ReminderBanner
+            reminder={activeReminder}
+            onComplete={markReminderDone}
+            onSnooze={(id) => snoozeReminder(id, 10)}
+          />
+          <PracticeSpotlight spotlight={spotlight} onNext={cycleSpotlight} />
+          <div className="grid gap-4">
+            <SectionHeading title="Today’s Practice" />
+            <div className="grid gap-6 md:grid-cols-3">
+              <Card title="Morning — Awakening in Christ">
+                <ToggleRow
+                  label={
+                    <a
+                      href={MARIAN_CONSECRATION_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Consecration to the Virgin Mary
+                    </a>
+                  }
+                  checked={d.morning.consecration}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, consecration: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <a
+                      href={ANGELUS_PRAYER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Angelus Prayer
+                    </a>
+                  }
+                  checked={d.morning.angelus}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, angelus: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <a
+                      href={BENEDICTUS_PRAYER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Recite the Benedictus
+                    </a>
+                  }
+                  checked={d.morning.benedictus}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, benedictus: v } }))}
+                />
+                <TimerRow
+                  label={
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        title={BREATHE_MEDITATION_TOOLTIP}
+                      >
+                        Breathe Meditation (min)
+                      </span>
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        title={BREATHE_MEDITATION_TOOLTIP}
+                        aria-hidden="true"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  }
+                  minutes={d.morning.breathMinutes}
+                  onChange={(m) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, breathMinutes: clamp(m, 0, 600) } }))}
+                />
+                <CounterRow
+                  label={
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        title={JESUS_PRAYER_TOOLTIP}
+                      >
+                        Jesus Prayer (count)
+                      </span>
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        title={JESUS_PRAYER_TOOLTIP}
+                        aria-hidden="true"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  }
+                  value={d.morning.jesusPrayerCount}
+                  onChange={(n) => setDay(date, (x) => ({
+                    ...x,
+                    morning: { ...x.morning, jesusPrayerCount: clamp(n, 0, 100000) },
+                  }))}
+                />
+              </Card>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card title="Scripture Seed">
+              <Card title="Midday — Re-centring on Christ">
+                <ToggleRow
+                  label={
+                    <a
+                      href={ANGELUS_PRAYER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Angelus Prayer
+                    </a>
+                  }
+                  checked={d.midday.angelus}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, angelus: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        title={STILLNESS_PAUSE_TOOLTIP}
+                      >
+                        Stillness Pause
+                      </span>
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        title={STILLNESS_PAUSE_TOOLTIP}
+                        aria-hidden="true"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  }
+                  checked={d.midday.stillness}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, stillness: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        title={BODY_BLESSING_TOOLTIP}
+                      >
+                        Body Blessing
+                      </span>
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        title={BODY_BLESSING_TOOLTIP}
+                        aria-hidden="true"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  }
+                  checked={d.midday.bodyBlessing}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, bodyBlessing: v } }))}
+                />
+                <TemptationBox date={date} d={d} setDay={setDay} />
+                <CustomMetricInputs
+                  date={date}
+                  day={d}
+                  setDay={setDay}
+                  customMetrics={preferences.customMetrics}
+                />
+              </Card>
+
+              <Card title="Evening — Resting in Christ">
+                <ToggleRow
+                  label={
+                    <a
+                      href={ANGELUS_PRAYER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Angelus Prayer
+                    </a>
+                  }
+                  checked={d.evening.angelus}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, angelus: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <a
+                      href={MAGNIFICAT_PRAYER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Recite the Magnificat
+                    </a>
+                  }
+                  checked={d.evening.magnificat}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, magnificat: v } }))}
+                />
+                <ToggleRow
+                  label="Examen with Compassion"
+                  checked={d.evening.examen}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, examen: v } }))}
+                />
+                <StepperRow
+                  label="Rosary (decades)"
+                  value={d.evening.rosaryDecades}
+                  min={0}
+                  max={5}
+                  onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))}
+                />
+                <RosaryMysteryNote mystery={rosaryMystery} />
+                {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
+                <ToggleRow
+                  label="Silence Before Sleep"
+                  checked={d.evening.nightSilence}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, nightSilence: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <a
+                      href={ACT_OF_CONTRITION_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Act of Contrition
+                    </a>
+                  }
+                  checked={d.evening.actOfContrition}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, actOfContrition: v } }))}
+                />
+                <ToggleRow
+                  label={
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        title={GRATITUDE_PRAYER_TOOLTIP}
+                      >
+                        Gratitude Prayer
+                      </span>
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        title={GRATITUDE_PRAYER_TOOLTIP}
+                        aria-hidden="true"
+                      >
+                        ?
+                      </span>
+                    </span>
+                  }
+                  checked={d.evening.gratitudePrayer}
+                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, gratitudePrayer: v } }))}
+                />
+              </Card>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <SectionHeading title="Reflection &amp; Journal" />
+            <div className="grid gap-6 md:grid-cols-3">
+              <Card title="Scripture Seed">
             <textarea
               value={d.scripture}
               onChange={(e) => setDay(date, (x) => ({ ...x, scripture: e.target.value }))}
@@ -2083,13 +2245,13 @@ function App() {
             {preferences.showGuidedPrompts && (
               <GuidedPrompt title="Lectio divina prompt" prompts={LECTIO_PROMPTS} />
             )}
-          </Card>
+              </Card>
 
-          <Card title="Weekly Anchors (auto-applies to week)">
-            <WeeklyAnchors date={date} setData={setData} data={data} />
-          </Card>
+              <Card title="Weekly Anchors (auto-applies to week)">
+                <WeeklyAnchors date={date} setData={setData} data={data} />
+              </Card>
 
-          <Card title="Journal">
+              <Card title="Journal">
             {preferences.showGuidedPrompts && <GuidedPrompt title="Journal spark" prompts={JOURNAL_PROMPTS} />}
             <MoodSelector value={d.mood} onChange={(mood) => setDay(date, (x) => ({ ...x, mood }))} />
             <TagSelector
@@ -2102,324 +2264,336 @@ function App() {
               className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
               placeholder="Graces, struggles, consolations, inspirations…"
             />
-          </Card>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card title="Meditation Timer">
-            <MeditationTimer
-              onFinish={(mins) =>
-                setDay(date, (x) => ({
-                  ...x,
-                  morning: { ...x.morning, breathMinutes: x.morning.breathMinutes + mins },
-                }))
-              }
-            />
-          </Card>
-
-          <Card title="Weekly Summary">
-            <div className="text-sm grid gap-2">
-              <div>
-                Week of <b>{weekStartLabel}</b> –<b> {weekEndLabel}</b>
-              </div>
-              <div>Breath meditation: <b>{weekSummary.totals.breathMinutes}</b> min</div>
-              <div>Jesus Prayer: <b>{weekSummary.totals.jesusPrayerCount}</b></div>
-              <div>Rosary decades: <b>{weekSummary.totals.rosaryDecades}</b></div>
-              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  <span>Weekly Anchors</span>
-                  <span>
-                    {weekSummary.completedCount}/{weekSummary.totalAnchors} done
-                  </span>
-                </div>
-                <div className="mt-2 grid gap-1">
-                  {WEEKLY_ANCHORS.map(({ key, label }) => {
-                    const complete = weekSummary.anchors[key];
-                    return (
-                      <div key={key} className="flex items-center justify-between">
-                        <span>{label}</span>
-                        <span
-                          className={
-                            "text-xs font-medium " +
-                            (complete
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-zinc-500 dark:text-zinc-400")
-                          }
-                        >
-                          {complete ? "Completed" : "Pending"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              </Card>
             </div>
-          </Card>
+          </div>
 
-          <MetricTrendsCard
-            selectedMetric={selectedMetric}
-            setSelectedMetric={setSelectedMetric}
-            metricView={metricView}
-            setMetricView={setMetricView}
-            series={displayedMetricSeries}
-            summary={metricSummary}
-            metricConfig={metricConfig}
-            metricOptions={metricOptions}
-            highlights={metricHighlights}
-          />
-
-          <Card title="Stats">
-            <div className="text-sm grid gap-4">
-              <div className="grid gap-2">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Current streak</span>
-                  <span className="tabular-nums font-semibold">
-                    {streak} day{streak === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Longest streak</span>
-                  <span className="tabular-nums font-semibold">
-                    {longestStreak} day{longestStreak === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Breath meditation (min)</span>
-                  <span className="tabular-nums font-semibold">{totals.breathMinutes}</span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Jesus Prayer (count)</span>
-                  <span className="tabular-nums font-semibold">{totals.jesusPrayerCount}</span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Rosary decades</span>
-                  <span className="tabular-nums font-semibold">{totals.rosaryDecades}</span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Urges noted</span>
-                  <span className="tabular-nums font-semibold">{totals.urgesNoted}</span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Victories over urges</span>
-                  <span className="tabular-nums font-semibold">{totals.victories}</span>
-                </div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                  <span>Lapses</span>
-                  <span className="tabular-nums font-semibold">{totals.lapses}</span>
-                </div>
+          <div className="grid gap-4">
+            <SectionHeading title="History &amp; Insights" />
+            <div className="grid gap-6 md:grid-cols-3">
+              <div ref={timerCardRef}>
+                <Card title="Meditation Timer">
+                  <MeditationTimer onFinish={handleMeditationFinish} />
+                </Card>
               </div>
 
-              {customTotals.length ? (
-                <div className="grid gap-1">
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Custom totals to date
-                  </h3>
-                  {customTotals.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-                    >
-                      <span>{entry.name}</span>
-                      <span className="tabular-nums font-semibold">
-                        {formatMetricValue(entry.total)} {entry.unit}
+              <Card title="Weekly Summary">
+                <div className="text-sm grid gap-2">
+                  <div>
+                    Week of <b>{weekStartLabel}</b> –<b> {weekEndLabel}</b>
+                  </div>
+                  <div>Breath meditation: <b>{weekSummary.totals.breathMinutes}</b> min</div>
+                  <div>Jesus Prayer: <b>{weekSummary.totals.jesusPrayerCount}</b></div>
+                  <div>Rosary decades: <b>{weekSummary.totals.rosaryDecades}</b></div>
+                  <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                    <div className="flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <span>Weekly Anchors</span>
+                      <span>
+                        {weekSummary.completedCount}/{weekSummary.totalAnchors} done
                       </span>
                     </div>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="grid gap-1">
-                <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Daily practices completed
-                </h3>
-                <div className="grid gap-1">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Morning consecration</span>
-                    <span className="tabular-nums font-semibold">{totals.morningConsecration}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Morning Angelus</span>
-                    <span className="tabular-nums font-semibold">{totals.morningAngelus}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Recite the Benedictus</span>
-                    <span className="tabular-nums font-semibold">{totals.morningBenedictus}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Midday stillness pause</span>
-                    <span className="tabular-nums font-semibold">{totals.middayStillness}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Midday Angelus</span>
-                    <span className="tabular-nums font-semibold">{totals.middayAngelus}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Body blessing</span>
-                    <span className="tabular-nums font-semibold">{totals.middayBodyBlessing}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Evening examen</span>
-                    <span className="tabular-nums font-semibold">{totals.eveningExamen}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Evening Angelus</span>
-                    <span className="tabular-nums font-semibold">{totals.eveningAngelus}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Recite the Magnificat</span>
-                    <span className="tabular-nums font-semibold">{totals.eveningMagnificat}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Silence before sleep</span>
-                    <span className="tabular-nums font-semibold">{totals.eveningNightSilence}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Act of Contrition</span>
-                    <span className="tabular-nums font-semibold">{totals.eveningActOfContrition}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Gratitude prayer</span>
-                    <span className="tabular-nums font-semibold">{totals.eveningGratitudePrayer}</span>
+                    <div className="mt-2 grid gap-1">
+                      {WEEKLY_ANCHORS.map(({ key, label }) => {
+                        const complete = weekSummary.anchors[key];
+                        return (
+                          <div key={key} className="flex items-center justify-between">
+                            <span>{label}</span>
+                            <span
+                              className={
+                                "text-xs font-medium " +
+                                (complete
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-zinc-500 dark:text-zinc-400")
+                              }
+                            >
+                              {complete ? "Completed" : "Pending"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Card>
 
-              <div className="grid gap-1">
-                <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Weekly anchors completed
-                </h3>
-                <div className="grid gap-1">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Mass</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyMass}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Eucharistic adoration</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyAdoration}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Confession</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyConfession}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Fasting</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyFasting}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Accountability</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyAccountability}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Sabbath rest</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklySabbath}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Service / mercy outreach</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyService}</span>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                    <span>Spiritual direction check-in</span>
-                    <span className="tabular-nums font-semibold">{totals.weeklyDirection}</span>
-                  </div>
-                </div>
-              </div>
+              <MetricTrendsCard
+                selectedMetric={selectedMetric}
+                setSelectedMetric={setSelectedMetric}
+                metricView={metricView}
+                setMetricView={setMetricView}
+                series={displayedMetricSeries}
+                summary={metricSummary}
+                metricConfig={metricConfig}
+                metricOptions={metricOptions}
+                highlights={metricHighlights}
+              />
 
-              {moodSummary.counts.length ? (
-                <div className="grid gap-1">
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Mood patterns
-                  </h3>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    {moodSummary.counts.map(([mood, count]) => {
-                      const meta = getMoodMeta(mood);
-                      return (
-                        <span key={mood} className="chip">
-                          {meta?.emoji} {meta?.label || mood} · {count}
-                        </span>
-                      );
-                    })}
+              <Card title="Stats">
+                <div className="text-sm grid gap-4">
+                  <div className="grid gap-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Current streak</span>
+                      <span className="tabular-nums font-semibold">
+                        {streak} day{streak === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Longest streak</span>
+                      <span className="tabular-nums font-semibold">
+                        {longestStreak} day{longestStreak === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Breath meditation (min)</span>
+                      <span className="tabular-nums font-semibold">{totals.breathMinutes}</span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Jesus Prayer (count)</span>
+                      <span className="tabular-nums font-semibold">{totals.jesusPrayerCount}</span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Rosary decades</span>
+                      <span className="tabular-nums font-semibold">{totals.rosaryDecades}</span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Urges noted</span>
+                      <span className="tabular-nums font-semibold">{totals.urgesNoted}</span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Victories over urges</span>
+                      <span className="tabular-nums font-semibold">{totals.victories}</span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                      <span>Lapses</span>
+                      <span className="tabular-nums font-semibold">{totals.lapses}</span>
+                    </div>
                   </div>
-                  {latestMoodMeta ? (
-                    <p className="text-[11px] text-zinc-500">
-                      Last logged mood: {latestMoodMeta.emoji} {latestMoodMeta.label}
-                    </p>
+
+                  {customTotals.length ? (
+                    <div className="grid gap-1">
+                      <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                        Custom totals to date
+                      </h3>
+                      {customTotals.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+                        >
+                          <span>{entry.name}</span>
+                          <span className="tabular-nums font-semibold">
+                            {formatMetricValue(entry.total)} {entry.unit}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-1">
+                    <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Daily practices completed
+                    </h3>
+                    <div className="grid gap-1">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Morning consecration</span>
+                        <span className="tabular-nums font-semibold">{totals.morningConsecration}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Morning Angelus</span>
+                        <span className="tabular-nums font-semibold">{totals.morningAngelus}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Recite the Benedictus</span>
+                        <span className="tabular-nums font-semibold">{totals.morningBenedictus}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Midday stillness pause</span>
+                        <span className="tabular-nums font-semibold">{totals.middayStillness}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Midday Angelus</span>
+                        <span className="tabular-nums font-semibold">{totals.middayAngelus}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Body blessing</span>
+                        <span className="tabular-nums font-semibold">{totals.middayBodyBlessing}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Evening examen</span>
+                        <span className="tabular-nums font-semibold">{totals.eveningExamen}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Evening Angelus</span>
+                        <span className="tabular-nums font-semibold">{totals.eveningAngelus}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Recite the Magnificat</span>
+                        <span className="tabular-nums font-semibold">{totals.eveningMagnificat}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Silence before sleep</span>
+                        <span className="tabular-nums font-semibold">{totals.eveningNightSilence}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Act of Contrition</span>
+                        <span className="tabular-nums font-semibold">{totals.eveningActOfContrition}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Gratitude prayer</span>
+                        <span className="tabular-nums font-semibold">{totals.eveningGratitudePrayer}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-1">
+                    <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Weekly anchors completed
+                    </h3>
+                    <div className="grid gap-1">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Mass</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyMass}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Eucharistic adoration</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyAdoration}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Confession</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyConfession}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Fasting</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyFasting}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Accountability</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyAccountability}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Sabbath rest</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklySabbath}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Service / mercy outreach</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyService}</span>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                        <span>Spiritual direction check-in</span>
+                        <span className="tabular-nums font-semibold">{totals.weeklyDirection}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {moodSummary.counts.length ? (
+                    <div className="grid gap-1">
+                      <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                        Mood patterns
+                      </h3>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {moodSummary.counts.map(([mood, count]) => {
+                          const meta = getMoodMeta(mood);
+                          return (
+                            <span key={mood} className="chip">
+                              {meta?.emoji} {meta?.label || mood} · {count}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {latestMoodMeta ? (
+                        <p className="text-[11px] text-zinc-500">
+                          Last logged mood: {latestMoodMeta.emoji} {latestMoodMeta.label}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {tagSummary.length ? (
+                    <div className="grid gap-1">
+                      <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                        Frequent tags
+                      </h3>
+                      <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                        {tagSummary.slice(0, 10).map(([tag, count]) => (
+                          <span key={tag} className="chip">
+                            #{tag} · {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
-              ) : null}
-
-              {tagSummary.length ? (
-                <div className="grid gap-1">
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Frequent tags
-                  </h3>
-                  <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                    {tagSummary.slice(0, 10).map(([tag, count]) => (
-                      <span key={tag} className="chip">
-                        #{tag} · {count}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-          ) : null}
-        </div>
-      </Card>
-
-      <RecentEntriesCard
-        entries={recentEntries}
-        totalMatching={historyCount}
-        limit={historyLimit}
-        tagSummary={tagSummary}
-        selectedTag={historyTag}
-        onSelectTag={setHistoryTag}
-        onSelectDate={jumpToDate}
-        customMetricDefinitions={preferences.customMetrics}
-      />
-
-      <Card title="Backup / Restore">
-        <BackupControls data={data} setData={setData} preferences={preferences} updatePreferences={updatePreferences} />
-      </Card>
-
-          <Card title="Settings & Safety">
-            <div className="grid gap-2 text-sm">
-              <label className="flex items-center justify-between gap-2">
-                <span>Show guided prompts</span>
-                <input
-                  type="checkbox"
-                  checked={preferences.showGuidedPrompts}
-                  onChange={(e) => updatePreferences({ showGuidedPrompts: e.target.checked })}
-                />
-              </label>
-              <button
-                className="btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30"
-                onClick={resetApp}
-              >
-                Reset App (export → clear → reload)
-              </button>
-              <p className="text-xs text-zinc-500">
-                This will optionally back up your data as JSON, then clear local storage and unregister the service worker before
-                reloading.
-              </p>
+              </Card>
             </div>
-          </Card>
-        </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card title="Custom Metrics">
-            <CustomMetricManager customMetrics={preferences.customMetrics} updatePreferences={updatePreferences} />
-          </Card>
-          <Card title="Reminders & Planning">
-            <ReminderPlanner
-              reminders={preferences.reminders}
-              updatePreferences={updatePreferences}
-              allowNotifications={preferences.allowNotifications}
-              requestNotifications={requestNotifications}
+            <RecentEntriesCard
+              entries={recentEntries}
+              totalMatching={historyCount}
+              limit={historyLimit}
+              tagSummary={tagSummary}
+              selectedTag={historyTag}
+              onSelectTag={setHistoryTag}
+              onSelectDate={jumpToDate}
+              customMetricDefinitions={preferences.customMetrics}
             />
-            <PlanTomorrow
-              plan={preferences.tomorrowPlan}
-              onChange={(value) => updatePreferences({ tomorrowPlan: value })}
-            />
-          </Card>
-        </div>
+          </div>
+
+          <div className="grid gap-4">
+            <SectionHeading title="Planning &amp; Preferences" />
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card title="Backup / Restore">
+                <BackupControls
+                  data={data}
+                  setData={setData}
+                  preferences={preferences}
+                  updatePreferences={updatePreferences}
+                />
+              </Card>
+
+              <Card title="Settings &amp; Safety">
+                <div className="grid gap-2 text-sm">
+                  <label className="flex items-center justify-between gap-2">
+                    <span>Show guided prompts</span>
+                    <input
+                      type="checkbox"
+                      checked={preferences.showGuidedPrompts}
+                      onChange={(e) => updatePreferences({ showGuidedPrompts: e.target.checked })}
+                    />
+                  </label>
+                  <button
+                    className="btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30"
+                    onClick={resetApp}
+                  >
+                    Reset App (export → clear → reload)
+                  </button>
+                  <p className="text-xs text-zinc-500">
+                    This will optionally back up your data as JSON, then clear local storage and unregister the service worker before
+                    reloading.
+                  </p>
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card title="Custom Metrics">
+                <CustomMetricManager
+                  customMetrics={preferences.customMetrics}
+                  updatePreferences={updatePreferences}
+                />
+              </Card>
+              <Card title="Reminders &amp; Planning">
+                <ReminderPlanner
+                  reminders={preferences.reminders}
+                  updatePreferences={updatePreferences}
+                  allowNotifications={preferences.allowNotifications}
+                  requestNotifications={requestNotifications}
+                />
+                <PlanTomorrow
+                  plan={preferences.tomorrowPlan}
+                  onChange={(value) => updatePreferences({ tomorrowPlan: value })}
+                />
+              </Card>
+            </div>
+          </div>
 
         <TopNav date={date} setDate={setDate} data={data} />
 
@@ -2427,6 +2601,11 @@ function App() {
           Built for Mark — “see clearly, return gently, offer everything to Christ.”
         </footer>
       </main>
+      <PrayerSessionModal
+        open={showSessionModal}
+        onClose={handleSessionClose}
+        onFinish={handleMeditationFinish}
+      />
     </div>
   </div>
   );
@@ -2831,6 +3010,19 @@ function formatMetricValue(value) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
+function SectionHeading({ title, description }) {
+  return (
+    <div className="section-heading flex flex-col gap-1">
+      <div className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-700/80 dark:text-emerald-200/80">
+        {title}
+      </div>
+      {description ? (
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">{description}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function Card({ title, children }) {
   return (
     <section className="glass-card">
@@ -2998,9 +3190,10 @@ function MeditationTimer({ onFinish }) {
   const reset = () => setSeconds(0);
   const finish = () => {
     setRunning(false);
-    if (mins > 0) onFinish(mins);
+    if (mins > 0 && typeof onFinish === "function") {
+      onFinish(mins);
+    }
     setSeconds(0);
-    alert(`Logged ${mins} minute(s) of breath meditation.`);
   };
 
   return (
@@ -3022,6 +3215,65 @@ function MeditationTimer({ onFinish }) {
       <p className="text-xs text-zinc-500 text-center">
         Tip: Use the timer during breath prayer. On finish, minutes are added to today’s total.
       </p>
+    </div>
+  );
+}
+
+function PrayerSessionModal({ open, onClose, onFinish }) {
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const handleBackdropClick = (event) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center px-4 py-10"
+      onClick={handleBackdropClick}
+    >
+      <div className="absolute inset-0 bg-zinc-900/60 backdrop-blur-sm" aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative z-10 w-full max-w-md rounded-3xl border border-emerald-200/40 bg-white/95 p-6 shadow-2xl dark:border-emerald-500/20 dark:bg-zinc-900/95"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100">Begin Prayer Session</h2>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+              Rest in silence with Christ. When you finish, your minutes are added to today’s breath practice.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="text-lg text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            onClick={onClose}
+            aria-label="Close prayer session"
+          >
+            ×
+          </button>
+        </div>
+        <div className="mt-6">
+          <MeditationTimer
+            onFinish={(mins) => {
+              onFinish(mins);
+              onClose();
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -3284,6 +3536,25 @@ function ReminderPlanner({ reminders, updatePreferences, allowNotifications, req
           {allowNotifications ? "Enabled" : "Enable"}
         </button>
         {allowNotifications ? <span className="text-emerald-600">Granted</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function AffirmationBanner({ message, onDismiss }) {
+  if (!message) return null;
+  return (
+    <div className="glass-card affirmation-card">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl" aria-hidden="true">
+          🕯️
+        </span>
+        <div className="flex-1 text-sm leading-relaxed text-emerald-900 dark:text-emerald-100">{message}</div>
+        {onDismiss ? (
+          <button type="button" className="btn text-xs px-3 py-1" onClick={onDismiss}>
+            Dismiss
+          </button>
+        ) : null}
       </div>
     </div>
   );

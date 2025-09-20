@@ -225,6 +225,43 @@ const DEFAULT_PREFERENCES = {
   spotlightIndex: 0,
   tomorrowPlan: ""
 };
+const AFFIRMATION_MESSAGES = ["Well done — you returned to stillness today.", "Remember, even one breath of prayer is beloved by God.", "Grace meets you in this quiet — thank you for pausing."];
+const TIMER_AFFIRMATIONS = [mins => `Well done — you rested with Christ for ${mins} minute${mins === 1 ? "" : "s"}.`, mins => `Each quiet breath matters. Logged ${mins} mindful minute${mins === 1 ? "" : "s"}.`, mins => `You offered ${mins} minute${mins === 1 ? "" : "s"} of steady prayer. God delights in your return.`];
+const STREAK_AFFIRMATIONS = [streak => `You’ve tended prayer for ${streak} day${streak === 1 ? "" : "s"} in a row. Keep returning gently.`, streak => `Beautiful — a ${streak}-day rhythm of prayer and presence.`, streak => `Christ holds your ${streak}-day streak with joy.`];
+function pickRandomEntry(list) {
+  if (!Array.isArray(list) || !list.length) return null;
+  const index = Math.floor(Math.random() * list.length);
+  return list[index];
+}
+let chimeAudioContext = null;
+async function playChime() {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!chimeAudioContext) {
+      chimeAudioContext = new AudioCtx();
+    }
+    if (chimeAudioContext.state === "suspended") {
+      await chimeAudioContext.resume();
+    }
+    const ctx = chimeAudioContext;
+    const now = ctx.currentTime;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(660, now);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
+    oscillator.start(now);
+    oscillator.stop(now + 1.4);
+  } catch (error) {
+    // Silently ignore audio errors (e.g., autoplay restrictions).
+  }
+}
 const MARIAN_CONSECRATION_URL = "https://militiaoftheimmaculata.com/act-of-consecration-to-mary/";
 const ANGELUS_PRAYER_URL = "https://theangelusprayer.com/angelus-prayer/";
 const BENEDICTUS_PRAYER_URL = "https://biblia.com/bible/esv/luke/1/68-79";
@@ -1224,6 +1261,9 @@ function App() {
   const [selectedMetric, setSelectedMetric] = useState(() => metricOptions[0]?.value || BASE_METRIC_OPTIONS[0].value);
   const [metricView, setMetricView] = useState("daily");
   const [historyTag, setHistoryTag] = useState("");
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [affirmation, setAffirmation] = useState("");
+  const timerCardRef = useRef(null);
   const historyLimit = 10;
   useEffect(() => {
     if (!metricOptions.some(option => option.value === selectedMetric)) {
@@ -1233,6 +1273,17 @@ function App() {
   const d = useMemo(() => normalizeDay(data[date] ?? blankDay(date)), [data, date]);
   const streak = useMemo(() => calcStreak(data), [data]);
   const longestStreak = useMemo(() => calcLongestStreak(data), [data]);
+  const hasActivityToday = useMemo(() => dayHasActivity(d), [d]);
+  const prevActivityRef = useRef(hasActivityToday);
+  const prevStreakRef = useRef(streak);
+  const skipNextAffirmationRef = useRef(false);
+  const showAffirmation = useCallback((message, options = {}) => {
+    if (!message) return;
+    setAffirmation(message);
+    if (options.suppressAutoNext) {
+      skipNextAffirmationRef.current = true;
+    }
+  }, []);
   const totals = useMemo(() => calcTotals(data), [data]);
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
   const metricConfig = useMemo(() => metricOptions.find(opt => opt.value === selectedMetric) ?? metricOptions[0], [metricOptions, selectedMetric]);
@@ -1282,6 +1333,58 @@ function App() {
   const rosaryMystery = useMemo(() => getRosaryMysteryForDate(date), [date]);
   const scriptureSuggestion = useMemo(() => getScriptureSeedSuggestion(date), [date]);
   const catechismSuggestion = useMemo(() => getCatechismSuggestion(date), [date]);
+  useEffect(() => {
+    if (!prevActivityRef.current && hasActivityToday) {
+      if (skipNextAffirmationRef.current) {
+        skipNextAffirmationRef.current = false;
+      } else {
+        const message = pickRandomEntry(AFFIRMATION_MESSAGES);
+        if (message) showAffirmation(message);
+      }
+    }
+    prevActivityRef.current = hasActivityToday;
+  }, [hasActivityToday, showAffirmation]);
+  useEffect(() => {
+    if (streak > prevStreakRef.current && streak > 0) {
+      const template = pickRandomEntry(STREAK_AFFIRMATIONS);
+      const message = typeof template === "function" ? template(streak) : template;
+      if (message) showAffirmation(message);
+    }
+    prevStreakRef.current = streak;
+  }, [streak, showAffirmation]);
+  const handleBeginSession = useCallback(() => {
+    setShowSessionModal(true);
+    void playChime();
+    if (timerCardRef.current && typeof timerCardRef.current.scrollIntoView === "function") {
+      timerCardRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+  }, []);
+  const handleSessionClose = useCallback(() => {
+    setShowSessionModal(false);
+  }, []);
+  const handleDismissAffirmation = useCallback(() => {
+    setAffirmation("");
+  }, []);
+  const handleMeditationFinish = useCallback(mins => {
+    if (!mins) return;
+    setDay(date, existing => ({
+      ...existing,
+      morning: {
+        ...existing.morning,
+        breathMinutes: (existing.morning?.breathMinutes || 0) + mins
+      }
+    }));
+    const template = pickRandomEntry(TIMER_AFFIRMATIONS);
+    const message = typeof template === "function" ? template(mins) : template;
+    const fallback = pickRandomEntry(AFFIRMATION_MESSAGES);
+    showAffirmation(message ?? fallback, {
+      suppressAutoNext: true
+    });
+    void playChime();
+  }, [date, setDay, showAffirmation]);
   const cycleSpotlight = useCallback(() => {
     updatePreferences(prev => ({
       spotlightIndex: (prev.spotlightIndex + 1) % PRACTICE_SPOTLIGHTS.length
@@ -1346,7 +1449,32 @@ function App() {
     updatePIN: updatePIN
   }))))), /*#__PURE__*/React.createElement("main", {
     className: "relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8"
-  }, /*#__PURE__*/React.createElement(ReminderBanner, {
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "glass-card welcome-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-4 sm:flex-row sm:items-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-semibold uppercase tracking-[0.35em] text-emerald-700/80 dark:text-emerald-200/80"
+  }, "Welcome"), /*#__PURE__*/React.createElement("h2", {
+    className: "mt-2 text-2xl font-semibold text-emerald-900 dark:text-emerald-100"
+  }, "Cultivate mindful prayer today"), /*#__PURE__*/React.createElement("p", {
+    className: "mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300"
+  }, "This app helps you cultivate mindful prayer. Record your moments of stillness, track your rhythm, and return often."), /*#__PURE__*/React.createElement("p", {
+    className: "mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300"
+  }, "Use Today\u2019s Practice to mark the rhythm, Reflection & Journal to linger with Scripture, and History & Insights to notice how grace unfolds.")), /*#__PURE__*/React.createElement("div", {
+    className: "flex w-full flex-col items-stretch gap-2 sm:w-auto"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: handleBeginSession,
+    className: "rounded-full bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+  }, "Begin Prayer Session"), /*#__PURE__*/React.createElement("span", {
+    className: "text-center text-xs text-zinc-500 dark:text-zinc-400"
+  }, "Opens a gentle timer for contemplative breath prayer.")))), /*#__PURE__*/React.createElement(AffirmationBanner, {
+    message: affirmation,
+    onDismiss: handleDismissAffirmation
+  }), /*#__PURE__*/React.createElement(ReminderBanner, {
     reminder: activeReminder,
     onComplete: markReminderDone,
     onSnooze: id => snoozeReminder(id, 10)
@@ -1354,7 +1482,11 @@ function App() {
     spotlight: spotlight,
     onNext: cycleSpotlight
   }), /*#__PURE__*/React.createElement("div", {
-    className: "grid md:grid-cols-3 gap-6"
+    className: "grid gap-4"
+  }, /*#__PURE__*/React.createElement(SectionHeading, {
+    title: "Today\u2019s Practice"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-6 md:grid-cols-3"
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Morning \u2014 Awakening in Christ"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
@@ -1607,8 +1739,12 @@ function App() {
         gratitudePrayer: v
       }
     }))
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "grid md:grid-cols-3 gap-6"
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-4"
+  }, /*#__PURE__*/React.createElement(SectionHeading, {
+    title: "Reflection & Journal"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-6 md:grid-cols-3"
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Scripture Seed"
   }, /*#__PURE__*/React.createElement("textarea", {
@@ -1656,19 +1792,19 @@ function App() {
     })),
     className: "w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500",
     placeholder: "Graces, struggles, consolations, inspirations\u2026"
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "grid md:grid-cols-3 gap-6"
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-4"
+  }, /*#__PURE__*/React.createElement(SectionHeading, {
+    title: "History & Insights"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-6 md:grid-cols-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    ref: timerCardRef
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Meditation Timer"
   }, /*#__PURE__*/React.createElement(MeditationTimer, {
-    onFinish: mins => setDay(date, x => ({
-      ...x,
-      morning: {
-        ...x.morning,
-        breathMinutes: x.morning.breathMinutes + mins
-      }
-    }))
-  })), /*#__PURE__*/React.createElement(Card, {
+    onFinish: handleMeditationFinish
+  }))), /*#__PURE__*/React.createElement(Card, {
     title: "Weekly Summary"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm grid gap-2"
@@ -1861,7 +1997,7 @@ function App() {
   }, tagSummary.slice(0, 10).map(([tag, count]) => /*#__PURE__*/React.createElement("span", {
     key: tag,
     className: "chip"
-  }, "#", tag, " \xB7 ", count)))) : null)), /*#__PURE__*/React.createElement(RecentEntriesCard, {
+  }, "#", tag, " \xB7 ", count)))) : null))), /*#__PURE__*/React.createElement(RecentEntriesCard, {
     entries: recentEntries,
     totalMatching: historyCount,
     limit: historyLimit,
@@ -1870,7 +2006,13 @@ function App() {
     onSelectTag: setHistoryTag,
     onSelectDate: jumpToDate,
     customMetricDefinitions: preferences.customMetrics
-  }), /*#__PURE__*/React.createElement(Card, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-4"
+  }, /*#__PURE__*/React.createElement(SectionHeading, {
+    title: "Planning & Preferences"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "grid gap-6 md:grid-cols-2"
+  }, /*#__PURE__*/React.createElement(Card, {
     title: "Backup / Restore"
   }, /*#__PURE__*/React.createElement(BackupControls, {
     data: data,
@@ -1895,7 +2037,7 @@ function App() {
   }, "Reset App (export \u2192 clear \u2192 reload)"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
   }, "This will optionally back up your data as JSON, then clear local storage and unregister the service worker before reloading.")))), /*#__PURE__*/React.createElement("div", {
-    className: "grid md:grid-cols-2 gap-6"
+    className: "grid gap-6 md:grid-cols-2"
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Custom Metrics"
   }, /*#__PURE__*/React.createElement(CustomMetricManager, {
@@ -1913,13 +2055,17 @@ function App() {
     onChange: value => updatePreferences({
       tomorrowPlan: value
     })
-  }))), /*#__PURE__*/React.createElement(TopNav, {
+  })))), /*#__PURE__*/React.createElement(TopNav, {
     date: date,
     setDate: setDate,
     data: data
   }), /*#__PURE__*/React.createElement("footer", {
     className: "pt-2 pb-8 text-center text-xs text-zinc-500 dark:text-zinc-400"
-  }, "Built for Mark \u2014 \u201Csee clearly, return gently, offer everything to Christ.\u201D"))));
+  }, "Built for Mark \u2014 \u201Csee clearly, return gently, offer everything to Christ.\u201D")), /*#__PURE__*/React.createElement(PrayerSessionModal, {
+    open: showSessionModal,
+    onClose: handleSessionClose,
+    onFinish: handleMeditationFinish
+  })));
 }
 function RecentEntriesCard({
   entries,
@@ -2241,6 +2387,18 @@ function formatMetricValue(value) {
     maximumFractionDigits: 1
   });
 }
+function SectionHeading({
+  title,
+  description
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "section-heading flex flex-col gap-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-semibold uppercase tracking-[0.35em] text-emerald-700/80 dark:text-emerald-200/80"
+  }, title), description ? /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-zinc-600 dark:text-zinc-300"
+  }, description) : null);
+}
 function Card({
   title,
   children
@@ -2411,9 +2569,10 @@ function MeditationTimer({
   const reset = () => setSeconds(0);
   const finish = () => {
     setRunning(false);
-    if (mins > 0) onFinish(mins);
+    if (mins > 0 && typeof onFinish === "function") {
+      onFinish(mins);
+    }
     setSeconds(0);
-    alert(`Logged ${mins} minute(s) of breath meditation.`);
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col items-center gap-3"
@@ -2435,6 +2594,56 @@ function MeditationTimer({
   }, "Finish & Log")), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500 text-center"
   }, "Tip: Use the timer during breath prayer. On finish, minutes are added to today\u2019s total."));
+}
+function PrayerSessionModal({
+  open,
+  onClose,
+  onFinish
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = event => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  const handleBackdropClick = event => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-40 flex items-center justify-center px-4 py-10",
+    onClick: handleBackdropClick
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-0 bg-zinc-900/60 backdrop-blur-sm",
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    className: "relative z-10 w-full max-w-md rounded-3xl border border-emerald-200/40 bg-white/95 p-6 shadow-2xl dark:border-emerald-500/20 dark:bg-zinc-900/95",
+    onClick: event => event.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between gap-4"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold text-emerald-900 dark:text-emerald-100"
+  }, "Begin Prayer Session"), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300"
+  }, "Rest in silence with Christ. When you finish, your minutes are added to today\u2019s breath practice.")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "text-lg text-zinc-500 transition hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200",
+    onClick: onClose,
+    "aria-label": "Close prayer session"
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement(MeditationTimer, {
+    onFinish: mins => {
+      onFinish(mins);
+      onClose();
+    }
+  }))));
 }
 function TemptationBox({
   date,
@@ -2689,6 +2898,26 @@ function ReminderPlanner({
   }, allowNotifications ? "Enabled" : "Enable"), allowNotifications ? /*#__PURE__*/React.createElement("span", {
     className: "text-emerald-600"
   }, "Granted") : null));
+}
+function AffirmationBanner({
+  message,
+  onDismiss
+}) {
+  if (!message) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "glass-card affirmation-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl",
+    "aria-hidden": "true"
+  }, "\uD83D\uDD6F\uFE0F"), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 text-sm leading-relaxed text-emerald-900 dark:text-emerald-100"
+  }, message), onDismiss ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn text-xs px-3 py-1",
+    onClick: onDismiss
+  }, "Dismiss") : null));
 }
 function ReminderBanner({
   reminder,
