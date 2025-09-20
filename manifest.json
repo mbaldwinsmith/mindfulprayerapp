@@ -1,6 +1,6 @@
 {
-  "name": "Zen-Catholic Mindfulness & Prayer Tracker",
-  "short_name": "ZC Tracker",
+  "name": "Mindfulness and Prayer Tracker",
+  "short_name": "Prayer Tracker",
   "description": "Mindfulness & prayer tracker with meditation timer, journaling, and weekly anchors.",
   "start_url": "./",
   "scope": "./",

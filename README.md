@@ -18,3 +18,7 @@ All data is stored **locally in your browser** (localStorage). Use **Export JSON
 ## Notes
 - If you use a custom domain, add a `CNAME` file with your domain.
 - To update the app, push new commits; the service worker will refresh the cache automatically.
+
+
+## Icons
+This build uses custom brushstroke cross-in-enso icons for both 192×192 and 512×512 sizes.
