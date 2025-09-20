@@ -4,6 +4,7 @@ const {
   useRef,
   useState
 } = React;
+const BRUSHSTROKE_CROSS = typeof window !== "undefined" && window.BRUSHSTROKE_CROSS ? window.BRUSHSTROKE_CROSS : "";
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymd = d => d.toISOString().slice(0, 10);
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -214,11 +215,12 @@ function App() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-5xl px-4 py-3 flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("img", {
-    src: "./enso-cross.svg",
+    src: BRUSHSTROKE_CROSS,
     alt: "Mindfulness and Prayer Tracker logo",
     className: "h-10 w-10 shrink-0",
     width: "40",
-    height: "40"
+    height: "40",
+    loading: "lazy"
   }), /*#__PURE__*/React.createElement("h1", {
     className: "text-xl sm:text-2xl font-semibold tracking-tight"
   }, "Mindfulness and Prayer Tracker"), /*#__PURE__*/React.createElement("span", {
