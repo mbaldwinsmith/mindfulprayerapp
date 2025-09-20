@@ -504,9 +504,9 @@ function ToggleRow({ label, checked, onChange }) {
 
 function CounterRow({ label, value, onChange }) {
   return (
-    <div className="flex items-center justify-between gap-3 pr-2">
-      <span>{label}</span>
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pr-2">
+      <span className="flex-1 min-w-[10rem]">{label}</span>
+      <div className="flex items-center gap-2 md:w-full md:justify-end">
         <button className="btn" onClick={() => onChange(Math.max(0, value - 10))}>
           −10
         </button>

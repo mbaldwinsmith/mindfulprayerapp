@@ -547,9 +547,11 @@ function CounterRow({
   onChange
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-3 pr-2"
-  }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2"
+    className: "flex flex-wrap items-center gap-x-3 gap-y-2 pr-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex-1 min-w-[10rem]"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 md:w-full md:justify-end"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => onChange(Math.max(0, value - 10))
