@@ -250,9 +250,202 @@ const ROSARY_SCHEDULE = {
 };
 const SCRIPTURE_FOCUS_ROTATION = ["Rest in God's steady presence today.", "Welcome the gentle light of Christ.", "Let the Spirit breathe healing within.", "Receive the Father's compassionate mercy.", "Stand firm in God's faithful promises.", "Find hope in the risen Lord.", "Rejoice in grace that renews.", "Draw near with gratitude and trust.", "Open your heart to loving kindness.", "Wait on the Lord with courage.", "Walk in the freedom of forgiveness.", "Savor the peace Jesus gives.", "Lift your voice in thankful praise.", "Lean on God's everlasting arms.", "Embrace the joy of salvation.", "Let God's word steady your steps.", "Remember you are held in love.", "Invite the Spirit to guide you.", "Rest under God's protective wings.", "Let hope anchor your soul.", "Celebrate the light that overcomes darkness.", "Trust the Shepherd to lead you.", "Drink deeply from God's living water.", "Carry Christ's compassion into the day."];
 const SCRIPTURE_SEED_REFERENCES = ["Psalm 1:1-3", "Psalm 3:3-6", "Psalm 4:3-8", "Psalm 5:1-3", "Psalm 8:1-4", "Psalm 9:9-11", "Psalm 13:5-6", "Psalm 16:5-11", "Psalm 18:1-3", "Psalm 18:28-36", "Psalm 19:7-10", "Psalm 20:1-5", "Psalm 23:1-6", "Psalm 25:4-10", "Psalm 27:1-6", "Psalm 28:6-9", "Psalm 29:10-11", "Psalm 30:1-5", "Psalm 31:19-24", "Psalm 32:1-7", "Psalm 33:18-22", "Psalm 34:1-10", "Psalm 34:17-22", "Psalm 36:5-9", "Psalm 37:3-7", "Psalm 40:1-5", "Psalm 42:1-5", "Psalm 42:8-11", "Psalm 43:3-5", "Psalm 46:1-7", "Psalm 46:8-11", "Psalm 48:9-14", "Psalm 51:10-13", "Psalm 55:16-22", "Psalm 56:3-4", "Psalm 57:7-11", "Psalm 61:1-4", "Psalm 62:1-8", "Psalm 63:1-8", "Psalm 65:9-13", "Psalm 66:16-20", "Psalm 68:4-10", "Psalm 71:1-8", "Psalm 71:17-21", "Psalm 73:23-28", "Psalm 77:11-15", "Psalm 80:1-3", "Psalm 84:1-7", "Psalm 85:7-13", "Psalm 86:11-13", "Psalm 90:1-2", "Psalm 90:12-17", "Psalm 91:1-6", "Psalm 91:9-16", "Psalm 92:1-5", "Psalm 94:17-19", "Psalm 95:1-7", "Psalm 96:1-6", "Psalm 97:10-12", "Psalm 98:1-3", "Psalm 100:1-5", "Psalm 101:1-3", "Psalm 103:1-5", "Psalm 103:8-14", "Psalm 103:17-22", "Psalm 104:1-4", "Psalm 104:24-30", "Psalm 105:1-5", "Psalm 107:1-9", "Psalm 108:1-6", "Psalm 111:1-5", "Psalm 112:1-9", "Psalm 113:1-9", "Psalm 115:9-15", "Psalm 116:1-9", "Psalm 116:12-19", "Psalm 117:1-2", "Psalm 118:14-24", "Psalm 119:9-16", "Psalm 119:33-40", "Psalm 119:49-56", "Psalm 119:57-64", "Psalm 119:89-96", "Psalm 119:97-105", "Psalm 121:1-8", "Psalm 122:6-9", "Psalm 124:6-8", "Psalm 125:1-5", "Psalm 126:1-6", "Psalm 130:1-8", "Psalm 131:1-3", "Psalm 132:13-18", "Psalm 133:1-3", "Psalm 134:1-3", "Psalm 138:1-8", "Psalm 139:1-10", "Psalm 139:13-18", "Psalm 143:5-12", "Psalm 145:8-13", "Psalm 146:5-10", "Isaiah 9:2-7", "Isaiah 11:1-9", "Isaiah 12:1-6", "Isaiah 25:1-9", "Isaiah 26:3-9", "Isaiah 30:18-21", "Isaiah 32:1-2", "Isaiah 33:17-22", "Isaiah 35:1-10", "Isaiah 40:1-5", "Isaiah 40:9-11", "Isaiah 40:28-31", "Isaiah 41:8-13", "Isaiah 41:17-20", "Isaiah 42:5-9", "Isaiah 43:1-7", "Isaiah 43:16-21", "Isaiah 44:1-5", "Isaiah 44:21-23", "Isaiah 45:22-25", "Isaiah 49:13-16", "Isaiah 51:3-6", "Isaiah 51:11-16", "Isaiah 52:7-10", "Isaiah 54:4-10", "Isaiah 55:1-7", "Isaiah 55:8-13", "Isaiah 57:14-19", "Isaiah 58:6-12", "Isaiah 60:1-5", "Isaiah 60:18-22", "Isaiah 61:1-4", "Isaiah 61:10-11", "Isaiah 62:1-5", "Isaiah 63:7-9", "Isaiah 65:17-19", "Isaiah 65:20-25", "Isaiah 66:12-14", "Isaiah 66:18-23", "Matthew 4:23-25", "Matthew 5:1-12", "Matthew 5:13-16", "Matthew 5:38-48", "Matthew 6:5-13", "Matthew 6:19-24", "Matthew 6:25-34", "Matthew 7:7-11", "Matthew 7:24-29", "Matthew 8:1-4", "Matthew 8:5-13", "Matthew 8:23-27", "Matthew 9:9-13", "Matthew 9:18-26", "Matthew 9:35-38", "Matthew 11:25-30", "Matthew 12:15-21", "Matthew 13:1-9", "Matthew 13:18-23", "Matthew 13:31-33", "Matthew 14:13-21", "Matthew 14:22-33", "Matthew 15:29-31", "Matthew 16:13-20", "Matthew 17:1-9", "Matthew 18:1-5", "Matthew 18:12-20", "Matthew 19:13-15", "Matthew 20:29-34", "Matthew 21:1-9", "Matthew 22:34-40", "Matthew 23:37-39", "Matthew 25:31-40", "Matthew 26:26-29", "Matthew 28:1-10", "Matthew 28:16-20", "Mark 1:14-20", "Mark 1:29-34", "Mark 1:35-39", "Mark 2:1-12", "Mark 2:13-17", "Mark 4:1-9", "Mark 4:26-32", "Mark 4:35-41", "Mark 5:21-34", "Mark 5:35-43", "Mark 6:30-44", "Mark 6:45-52", "Mark 7:31-37", "Mark 8:1-9", "Mark 9:2-8", "Mark 9:33-37", "Mark 10:13-16", "Mark 10:35-45", "Mark 10:46-52", "Mark 12:28-34", "Luke 1:46-55", "Luke 1:68-79", "Luke 2:8-14", "Luke 2:25-32", "Luke 3:21-22", "Luke 4:16-21", "Luke 4:38-44", "Luke 5:1-11", "Luke 5:12-16", "Luke 6:20-26", "Luke 6:27-36", "Luke 6:37-42", "Luke 7:11-17", "Luke 7:36-50", "Luke 8:1-3", "Luke 8:22-25", "Luke 8:40-48", "Luke 9:10-17", "Luke 9:28-36", "Luke 10:1-9", "Luke 10:17-24", "Luke 10:25-37", "Luke 11:9-13", "Luke 12:22-32", "Luke 13:10-17", "Luke 15:1-7", "Luke 15:8-10", "Luke 15:11-24", "Luke 18:1-8", "Luke 19:1-10", "John 1:1-5", "John 1:14-18", "John 2:1-11", "John 3:1-8", "John 3:16-21", "John 4:5-14", "John 4:27-42", "John 5:1-9", "John 6:35-40", "John 6:47-58", "John 7:37-39", "John 8:12-20", "John 8:31-36", "John 9:1-7", "John 10:7-16", "John 10:27-30", "John 11:17-27", "John 11:32-44", "John 12:20-26", "John 13:1-15", "John 13:34-35", "John 14:1-7", "John 14:15-21", "John 14:25-27", "Acts 2:42-47", "Acts 3:1-10", "Acts 4:23-31", "Acts 9:1-9", "Acts 9:10-19", "Acts 10:34-43", "Acts 11:19-24", "Acts 12:5-17", "Acts 16:6-10", "Acts 16:25-34", "Acts 20:32-35", "Acts 27:21-26", "Acts 28:1-10", "Romans 5:1-5", "Romans 5:6-11", "Romans 8:1-4", "Romans 8:14-17", "Romans 8:18-25", "Romans 8:26-30", "Romans 8:31-39", "Romans 12:9-13", "Romans 12:14-21", "Romans 13:11-14", "Romans 15:1-6", "Romans 15:13", "1 Corinthians 1:3-9", "1 Corinthians 2:9-12", "1 Corinthians 3:16-17", "1 Corinthians 13:1-13", "1 Corinthians 15:20-26", "1 Corinthians 15:50-58", "2 Corinthians 1:3-7", "2 Corinthians 3:16-18", "2 Corinthians 4:6-10", "2 Corinthians 4:16-18", "2 Corinthians 5:14-21", "2 Corinthians 6:16-18", "2 Corinthians 12:7-10", "Galatians 2:19-21", "Galatians 5:22-26", "Ephesians 1:3-10", "Ephesians 1:17-23", "Ephesians 2:1-7", "Ephesians 2:13-18", "Ephesians 3:14-21", "Ephesians 4:1-6", "Ephesians 4:31-32", "Ephesians 5:1-2", "Ephesians 6:10-18", "Philippians 1:3-11", "Philippians 1:20-26", "Philippians 2:1-11", "Philippians 2:12-18", "Philippians 3:7-14", "Philippians 4:4-9", "Philippians 4:10-13", "Colossians 1:9-14", "Colossians 1:15-20", "Colossians 2:6-10", "Colossians 3:1-4", "Colossians 3:12-17", "1 Thessalonians 3:9-13", "1 Thessalonians 4:13-18", "1 Thessalonians 5:4-11", "1 Thessalonians 5:12-24", "2 Thessalonians 2:13-17", "2 Thessalonians 3:3-5", "1 Timothy 1:12-17", "1 Timothy 4:12-16", "1 Timothy 6:11-16", "2 Timothy 1:6-14", "2 Timothy 2:1-7", "2 Timothy 3:14-17", "Titus 2:11-14", "Titus 3:4-7", "Philemon 4-7", "Hebrews 2:9-15", "Hebrews 4:14-16", "Hebrews 6:17-20", "Hebrews 10:19-25", "Hebrews 11:1-3", "Hebrews 11:8-16", "Hebrews 11:32-40", "Hebrews 12:1-3", "Hebrews 12:12-15", "Hebrews 13:1-6", "James 1:2-5", "James 1:16-18", "James 3:13-18", "James 5:13-16", "1 Peter 1:3-9", "1 Peter 2:4-10", "1 Peter 3:8-12", "1 Peter 4:8-11", "1 Peter 5:6-11", "2 Peter 1:3-8", "2 Peter 1:16-21", "1 John 1:5-9", "1 John 3:1-3", "1 John 3:16-20", "1 John 4:7-12", "1 John 4:16-19", "1 John 5:1-5", "2 John 5-8", "3 John 2-6", "Jude 20-25", "Revelation 1:12-18", "Revelation 4:1-6", "Revelation 5:8-14", "Revelation 7:9-17", "Revelation 12:10-12", "Revelation 19:1-9", "Revelation 21:1-5", "Revelation 21:22-27", "Revelation 22:1-5", "Revelation 22:16-21"];
+function buildBibliaUrl(reference) {
+  if (!reference) return null;
+  const cleaned = reference.replace(/\s*\(ESV\)\s*$/i, "").trim();
+  if (!cleaned) return null;
+  const parts = cleaned.split(/\s+/);
+  if (parts.length < 2) return null;
+  let referencePart = parts.pop();
+  const book = parts.join(" ");
+  if (!book) return null;
+  const colonIndex = referencePart.indexOf(":");
+  let chapter = "";
+  let verse = "";
+  if (colonIndex >= 0) {
+    chapter = referencePart.slice(0, colonIndex);
+    verse = referencePart.slice(colonIndex + 1);
+  } else if (/^\d+$/.test(referencePart)) {
+    chapter = referencePart;
+  } else {
+    chapter = "1";
+    verse = referencePart;
+  }
+  const normalizedBook = book.replace(/[^A-Za-z0-9]/g, "");
+  if (!normalizedBook || !chapter) return null;
+  const verseSegment = verse.replace(/\s+/g, "");
+  const path = `${normalizedBook}${chapter}${verseSegment ? `.${verseSegment}` : ""}`;
+  return `https://biblia.com/books/esv/${path}`;
+}
+const CATECHISM_BASE_URL = "https://www.vatican.va/archive/ccc_css/archive/catechism/";
+const CATECHISM_READINGS = [{
+  slug: "p1s1c1a1",
+  section: "Part One · Section One · Chapter One · Article 1",
+  title: "The Desire for God",
+  summary: "Our longing for truth and happiness is already a response to God's invitation."
+}, {
+  slug: "p1s1c1a2",
+  section: "Part One · Section One · Chapter One · Article 2",
+  title: "Ways of Coming to Know God",
+  summary: "Creation and the human person point toward the Creator in whom all things hold together."
+}, {
+  slug: "p1s1c1a3",
+  section: "Part One · Section One · Chapter One · Article 3",
+  title: "The Knowledge of God According to the Church",
+  summary: "Faith and reason together welcome God's self-revelation through history and Scripture."
+}, {
+  slug: "p1s1c2a1",
+  section: "Part One · Section One · Chapter Two · Article 1",
+  title: "The Revelation of God",
+  summary: "God freely makes Himself known and invites humanity into covenant friendship."
+}, {
+  slug: "p1s1c2a2",
+  section: "Part One · Section One · Chapter Two · Article 2",
+  title: "The Transmission of Divine Revelation",
+  summary: "Apostolic Tradition and Scripture faithfully hand on the Gospel from age to age."
+}, {
+  slug: "p1s1c2a3",
+  section: "Part One · Section One · Chapter Two · Article 3",
+  title: "Sacred Scripture",
+  summary: "The inspired Word of God teaches truth for our salvation and nourishes the Church."
+}, {
+  slug: "p1s1c3a1",
+  section: "Part One · Section One · Chapter Three · Article 1",
+  title: "I Believe",
+  summary: "Faith is a personal adherence to God and a free assent to all He has revealed."
+}, {
+  slug: "p1s1c3a2",
+  section: "Part One · Section One · Chapter Three · Article 2",
+  title: "We Believe",
+  summary: "The Church, as the Body of Christ, professes a shared faith handed on from the apostles."
+}, {
+  slug: "p2s1c1a1",
+  section: "Part Two · Section One · Chapter One · Article 1",
+  title: "The Liturgy – Work of the Holy Trinity",
+  summary: "Father, Son, and Spirit draw us into the saving mystery through the Church's worship."
+}, {
+  slug: "p2s1c1a2",
+  section: "Part Two · Section One · Chapter One · Article 2",
+  title: "The Paschal Mystery in the Church's Sacraments",
+  summary: "Christ's death and resurrection are made present so that grace may bear fruit in us."
+}, {
+  slug: "p2s1c2a1",
+  section: "Part Two · Section One · Chapter Two · Article 1",
+  title: "Celebrating the Church's Liturgy",
+  summary: "Earthly liturgy joins the heavenly worship as the whole Church participates in Christ's prayer."
+}, {
+  slug: "p2s1c2a2",
+  section: "Part Two · Section One · Chapter Two · Article 2",
+  title: "Liturgical Diversity and the Unity of the Mystery",
+  summary: "Various rites express the same faith while safeguarding the unity of the sacramental life."
+}, {
+  slug: "p2s2c1a1",
+  section: "Part Two · Section Two · Chapter One · Article 1",
+  title: "The Sacrament of Baptism",
+  summary: "Through water and the Spirit we are freed from sin and reborn as children of God."
+}, {
+  slug: "p2s2c1a2",
+  section: "Part Two · Section Two · Chapter One · Article 2",
+  title: "The Sacrament of Confirmation",
+  summary: "The anointing with chrism seals us with the Spirit and strengthens us for mission."
+}, {
+  slug: "p2s2c1a3",
+  section: "Part Two · Section Two · Chapter One · Article 3",
+  title: "The Most Holy Eucharist",
+  summary: "Christ's Body and Blood nourish the Church and unite us in thanksgiving and communion."
+}, {
+  slug: "p2s2c2a4",
+  section: "Part Two · Section Two · Chapter Two · Article 4",
+  title: "The Sacrament of Penance and Reconciliation",
+  summary: "In mercy Christ heals our sins and restores us to communion with God and neighbor."
+}, {
+  slug: "p2s2c2a5",
+  section: "Part Two · Section Two · Chapter Two · Article 5",
+  title: "The Anointing of the Sick",
+  summary: "Christ sustains the suffering with grace, union to His Passion, and hope of healing."
+}, {
+  slug: "p2s2c3a6",
+  section: "Part Two · Section Two · Chapter Three · Article 6",
+  title: "The Sacrament of Holy Orders",
+  summary: "Through ordination Christ's mission continues in bishops, priests, and deacons."
+}, {
+  slug: "p2s2c3a7",
+  section: "Part Two · Section Two · Chapter Three · Article 7",
+  title: "The Sacrament of Matrimony",
+  summary: "Marriage images Christ's faithful love and becomes a path of holiness for spouses."
+}, {
+  slug: "p2s2c4a1",
+  section: "Part Two · Section Two · Chapter Four · Article 1",
+  title: "Sacramentals",
+  summary: "Blessings and sacred signs dispose us to receive grace and sanctify daily life."
+}, {
+  slug: "p3s1c1a1",
+  section: "Part Three · Section One · Chapter One · Article 1",
+  title: "Man: The Image of God",
+  summary: "Every person shares God's dignity and is called to reflect His love in freedom."
+}, {
+  slug: "p3s1c1a2",
+  section: "Part Three · Section One · Chapter One · Article 2",
+  title: "Our Vocation to Beatitude",
+  summary: "God invites us into divine happiness through the Beatitudes and life in the Spirit."
+}, {
+  slug: "p3s1c1a3",
+  section: "Part Three · Section One · Chapter One · Article 3",
+  title: "Man's Freedom",
+  summary: "Freedom flourishes in choosing the good and grows with grace and virtue."
+}, {
+  slug: "p3s1c1a4",
+  section: "Part Three · Section One · Chapter One · Article 4",
+  title: "The Moral Act",
+  summary: "Human acts are shaped by their object, intention, and circumstances in light of truth."
+}, {
+  slug: "p3s1c1a5",
+  section: "Part Three · Section One · Chapter One · Article 5",
+  title: "The Morality of the Passions",
+  summary: "Emotions are ordered toward the good when guided by reason and charity."
+}, {
+  slug: "p3s1c1a6",
+  section: "Part Three · Section One · Chapter One · Article 6",
+  title: "Moral Conscience",
+  summary: "Conscience is the inner sanctuary where we discern God's voice and choose the good."
+}, {
+  slug: "p3s1c1a7",
+  section: "Part Three · Section One · Chapter One · Article 7",
+  title: "The Virtues",
+  summary: "Theological and moral virtues steady us on the path of holiness and love."
+}, {
+  slug: "p3s1c1a8",
+  section: "Part Three · Section One · Chapter One · Article 8",
+  title: "Sin",
+  summary: "Sin wounds our communion with God, yet grace offers repentance and new life."
+}, {
+  slug: "p4s1c1a1",
+  section: "Part Four · Section One · Chapter One · Article 1",
+  title: "Prayer in the Christian Life",
+  summary: "Prayer springs from God's thirst for us and our response of love in faith."
+}, {
+  slug: "p4s1c2a1",
+  section: "Part Four · Section One · Chapter Two · Article 1",
+  title: "The Revelation of Prayer",
+  summary: "Scripture unveils how God's people learned to pray throughout salvation history."
+}, {
+  slug: "p4s1c3a1",
+  section: "Part Four · Section One · Chapter Three · Article 1",
+  title: "Expressions of Prayer",
+  summary: "Vocal, meditative, and contemplative prayer draw us into the mystery of God's presence."
+}, {
+  slug: "p4s1c3a2",
+  section: "Part Four · Section One · Chapter Three · Article 2",
+  title: "The Battle of Prayer",
+  summary: "Perseverance, humility, and trust sustain us amid distractions and spiritual struggle."
+}].map(entry => ({
+  ...entry,
+  url: `${CATECHISM_BASE_URL}${entry.slug}.htm`
+}));
 const SCRIPTURE_SEED_PLAN = SCRIPTURE_SEED_REFERENCES.map((reference, index) => ({
   reference: `${reference} (ESV)`,
-  focus: SCRIPTURE_FOCUS_ROTATION[index % SCRIPTURE_FOCUS_ROTATION.length]
+  focus: SCRIPTURE_FOCUS_ROTATION[index % SCRIPTURE_FOCUS_ROTATION.length],
+  url: buildBibliaUrl(reference)
 }));
 function getDayOfYearIndex(dateISO) {
   if (!dateISO) return 0;
@@ -282,6 +475,12 @@ function getScriptureSeedSuggestion(dateISO) {
   const index = getDayOfYearIndex(dateISO);
   if (Number.isNaN(index)) return null;
   return SCRIPTURE_SEED_PLAN[index % SCRIPTURE_SEED_PLAN.length];
+}
+function getCatechismSuggestion(dateISO) {
+  if (!dateISO) return null;
+  const index = getDayOfYearIndex(dateISO);
+  if (Number.isNaN(index)) return null;
+  return CATECHISM_READINGS[index % CATECHISM_READINGS.length];
 }
 const LECTIO_PROMPTS = ["Read slowly and notice a word or phrase that shimmers.", "Listen for Christ speaking the passage directly to you.", "How does this scripture invite you to act in love today?", "Rest in silence after reading—receive the gift rather than striving."];
 const JOURNAL_PROMPTS = ["Where did you sense consolation or desolation today?", "Name a person you want to hold in prayer right now.", "What invitation from God feels most alive this evening?", "What resistance or distraction surfaced, and how might grace meet it?", "Celebrate one small victory of faithfulness from today."];
@@ -1002,6 +1201,7 @@ function App() {
   const spotlight = useMemo(() => PRACTICE_SPOTLIGHTS[preferences.spotlightIndex % PRACTICE_SPOTLIGHTS.length], [preferences.spotlightIndex]);
   const rosaryMystery = useMemo(() => getRosaryMysteryForDate(date), [date]);
   const scriptureSuggestion = useMemo(() => getScriptureSeedSuggestion(date), [date]);
+  const catechismSuggestion = useMemo(() => getCatechismSuggestion(date), [date]);
   const cycleSpotlight = useCallback(() => {
     updatePreferences(prev => ({
       spotlightIndex: (prev.spotlightIndex + 1) % PRACTICE_SPOTLIGHTS.length
@@ -1204,7 +1404,8 @@ function App() {
     className: "w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500",
     placeholder: "E.g., \u2018Blessed are the pure in heart\u2026\u2019 (Matt 5:8)"
   }), /*#__PURE__*/React.createElement(ScriptureSeedSuggestion, {
-    suggestion: scriptureSuggestion
+    suggestion: scriptureSuggestion,
+    catechism: catechismSuggestion
   }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
     title: "Lectio divina prompt",
     prompts: LECTIO_PROMPTS
@@ -1377,7 +1578,19 @@ function App() {
     className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", null, "Accountability"), /*#__PURE__*/React.createElement("span", {
     className: "tabular-nums font-semibold"
-  }, totals.weeklyAccountability)))), moodSummary.counts.length ? /*#__PURE__*/React.createElement("div", {
+  }, totals.weeklyAccountability)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Sabbath rest"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklySabbath)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Service / mercy outreach"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyService)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", null, "Spiritual direction check-in"), /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums font-semibold"
+  }, totals.weeklyDirection)))), moodSummary.counts.length ? /*#__PURE__*/React.createElement("div", {
     className: "grid gap-1"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
@@ -1820,18 +2033,38 @@ function RosaryMysteryNote({
   }, decade))));
 }
 function ScriptureSeedSuggestion({
-  suggestion
+  suggestion,
+  catechism
 }) {
   if (!suggestion) return null;
+  const scriptureLink = suggestion.url;
   return /*#__PURE__*/React.createElement("div", {
-    className: "mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200"
+    className: "mt-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold"
-  }, "Suggested reading"), /*#__PURE__*/React.createElement("div", {
+  }, "Suggested scripture reading"), scriptureLink ? /*#__PURE__*/React.createElement("a", {
+    href: scriptureLink,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    className: "mt-1 inline-flex font-medium text-emerald-700 underline decoration-emerald-400/60 decoration-2 underline-offset-2 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+  }, suggestion.reference) : /*#__PURE__*/React.createElement("div", {
     className: "mt-1 font-medium"
-  }, suggestion.reference), /*#__PURE__*/React.createElement("p", {
+  }, suggestion.reference), suggestion.focus ? /*#__PURE__*/React.createElement("p", {
     className: "mt-1 italic"
-  }, suggestion.focus));
+  }, suggestion.focus) : null, catechism ? /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 border-t border-emerald-200 pt-3 dark:border-emerald-900/70"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-semibold"
+  }, "Catechism of the Catholic Church"), /*#__PURE__*/React.createElement("a", {
+    href: catechism.url,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    className: "mt-1 inline-flex font-medium text-emerald-700 underline decoration-emerald-400/60 decoration-2 underline-offset-2 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+  }, catechism.section), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 font-semibold"
+  }, catechism.title), catechism.summary ? /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-[13px] leading-relaxed text-emerald-700 dark:text-emerald-200/80"
+  }, catechism.summary) : null) : null);
 }
 function CounterRow({
   label,
@@ -2933,6 +3166,9 @@ function calcTotals(data) {
     if (weekly.confession) acc.weeklyConfession += 1;
     if (weekly.fasting) acc.weeklyFasting += 1;
     if (weekly.accountability) acc.weeklyAccountability += 1;
+    if (weekly.sabbath) acc.weeklySabbath += 1;
+    if (weekly.service) acc.weeklyService += 1;
+    if (weekly.direction) acc.weeklyDirection += 1;
     return acc;
   }, {
     breathMinutes: 0,
@@ -2949,7 +3185,10 @@ function calcTotals(data) {
     weeklyMass: 0,
     weeklyConfession: 0,
     weeklyFasting: 0,
-    weeklyAccountability: 0
+    weeklyAccountability: 0,
+    weeklySabbath: 0,
+    weeklyService: 0,
+    weeklyDirection: 0
   });
 }
 function calcCustomTotals(data, customMetrics = []) {
