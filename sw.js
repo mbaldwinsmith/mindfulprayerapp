@@ -22,22 +22,29 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") {
+    return;
+  }
+
   const url = new URL(event.request.url);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return;
+  }
+
+  const fetchAndCache = () =>
+    fetch(event.request).then((response) => {
+      if (response && (response.ok || response.type === "opaque")) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+      }
+      return response;
+    });
+
   if (url.origin !== location.origin) {
-    event.respondWith(
-      fetch(event.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return res;
-      }).catch(() => caches.match(event.request))
-    );
+    event.respondWith(fetchAndCache().catch(() => caches.match(event.request)));
   } else {
     event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return res;
-      }))
+      caches.match(event.request).then((cached) => cached || fetchAndCache())
     );
   }
 });
