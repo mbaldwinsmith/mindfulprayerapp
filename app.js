@@ -3070,7 +3070,7 @@ function WeeklyAnchors({
     className: "h-5 w-5 accent-emerald-600"
   }))), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
-  }, "Applies to Mon\u2013Sun of the selected week."));
+  }, "Applies to Sun\u2013Sat of the selected week."));
 }
 function TopNav({
   date,
@@ -3119,7 +3119,7 @@ function MiniMonth({
     className: "mb-2 text-sm font-medium"
   }, monthLabel), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1"
-  }, ["M", "T", "W", "T", "F", "S", "S"].map(d => /*#__PURE__*/React.createElement("div", {
+  }, ["S", "M", "T", "W", "T", "F", "S"].map(d => /*#__PURE__*/React.createElement("div", {
     key: d,
     className: "text-center text-[10px] text-zinc-500"
   }, d)), dots.map(({
@@ -3564,7 +3564,7 @@ function computeMetricHighlights(series, metricConfig, view) {
 function weekStartISO(dateISO) {
   const date = new Date(dateISO);
   if (Number.isNaN(date.getTime())) return dateISO;
-  const diff = (date.getDay() + 6) % 7;
+  const diff = date.getDay();
   date.setDate(date.getDate() - diff);
   return ymd(date);
 }
@@ -3778,9 +3778,8 @@ function calcWeekSummary(data, dateISO) {
 }
 function weekRange(d) {
   const day = d.getDay();
-  const diffToMon = (day + 6) % 7;
   const start = new Date(d);
-  start.setDate(d.getDate() - diffToMon);
+  start.setDate(d.getDate() - day);
   const arr = [];
   for (let i = 0; i < 7; i++) {
     const t = new Date(start);
@@ -3798,7 +3797,7 @@ function monthDots(dateISO, data) {
   const d = new Date(dateISO);
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
   const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  const lead = (first.getDay() + 6) % 7;
+  const lead = first.getDay();
   const arr = [];
   for (let i = 0; i < lead; i++) arr.push({
     date: "lead-" + i,
