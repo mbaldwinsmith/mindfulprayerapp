@@ -1836,7 +1836,6 @@ function App() {
 
   const handleBeginSession = useCallback(() => {
     setShowSessionModal(true);
-    void playChime();
     if (timerCardRef.current && typeof timerCardRef.current.scrollIntoView === "function") {
       timerCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -3184,13 +3183,20 @@ function MeditationTimer({ onFinish }) {
     setSeconds(0);
   };
 
+  const handleToggle = () => {
+    if (!running && seconds === 0) {
+      void playChime();
+    }
+    setRunning((r) => !r);
+  };
+
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="text-4xl font-mono tabular-nums">
         {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
       </div>
       <div className="flex gap-2">
-        <button className="btn" onClick={() => setRunning((r) => !r)}>
+        <button className="btn" onClick={handleToggle}>
           {running ? "Pause" : seconds ? "Resume" : "Start"}
         </button>
         <button className="btn" onClick={reset} disabled={running}>

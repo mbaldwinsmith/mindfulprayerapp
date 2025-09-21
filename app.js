@@ -1345,7 +1345,6 @@ function App() {
   }, [streak, showAffirmation]);
   const handleBeginSession = useCallback(() => {
     setShowSessionModal(true);
-    void playChime();
     if (timerCardRef.current && typeof timerCardRef.current.scrollIntoView === "function") {
       timerCardRef.current.scrollIntoView({
         behavior: "smooth",
@@ -2555,6 +2554,12 @@ function MeditationTimer({
     }
     setSeconds(0);
   };
+  const handleToggle = () => {
+    if (!running && seconds === 0) {
+      void playChime();
+    }
+    setRunning(r => !r);
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col items-center gap-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2563,7 +2568,7 @@ function MeditationTimer({
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn",
-    onClick: () => setRunning(r => !r)
+    onClick: handleToggle
   }, running ? "Pause" : seconds ? "Resume" : "Start"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: reset,
