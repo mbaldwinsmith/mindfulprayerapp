@@ -3695,7 +3695,7 @@ function WeeklyAnchors({ date, setData, data }) {
           />
         </label>
       ))}
-      <p className="text-xs text-zinc-500">Applies to Mon–Sun of the selected week.</p>
+      <p className="text-xs text-zinc-500">Applies to Sun–Sat of the selected week.</p>
     </div>
   );
 }
@@ -3735,7 +3735,7 @@ function MiniMonth({ dots, onPick, current }) {
     <div>
       <div className="mb-2 text-sm font-medium">{monthLabel}</div>
       <div className="grid grid-cols-7 gap-1">
-        {["M", "T", "W", "T", "F", "S", "S"].map((d) => (
+        {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
           <div key={d} className="text-center text-[10px] text-zinc-500">
             {d}
           </div>
@@ -4191,7 +4191,7 @@ function computeMetricHighlights(series, metricConfig, view) {
 function weekStartISO(dateISO) {
   const date = new Date(dateISO);
   if (Number.isNaN(date.getTime())) return dateISO;
-  const diff = (date.getDay() + 6) % 7;
+  const diff = date.getDay();
   date.setDate(date.getDate() - diff);
   return ymd(date);
 }
@@ -4434,9 +4434,8 @@ function calcWeekSummary(data, dateISO) {
 
 function weekRange(d) {
   const day = d.getDay();
-  const diffToMon = (day + 6) % 7;
   const start = new Date(d);
-  start.setDate(d.getDate() - diffToMon);
+  start.setDate(d.getDate() - day);
   const arr = [];
   for (let i = 0; i < 7; i++) {
     const t = new Date(start);
@@ -4456,7 +4455,7 @@ function monthDots(dateISO, data) {
   const d = new Date(dateISO);
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
   const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  const lead = (first.getDay() + 6) % 7;
+  const lead = first.getDay();
   const arr = [];
   for (let i = 0; i < lead; i++) arr.push({ date: "lead-" + i, filled: false });
   for (let i = 1; i <= days; i++) {
