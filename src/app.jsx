@@ -747,7 +747,7 @@ function buildBibliaUrl(reference) {
   if (!normalizedBook || !chapter) return null;
   const verseSegment = verse.replace(/\s+/g, "");
   const path = `${normalizedBook}${chapter}${verseSegment ? `.${verseSegment}` : ""}`;
-  return `https://biblia.com/books/esv/${path}`;
+  return `https://biblia.com/bible/esv/${path}`;
 }
 
 const CATECHISM_BASE_URL = "http://www.scborromeo.org/ccc/";
