@@ -1784,12 +1784,17 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-6 md:grid-cols-3"
   }, /*#__PURE__*/React.createElement("div", {
-    ref: timerCardRef
+    ref: timerCardRef,
+    className: "md:h-full"
   }, /*#__PURE__*/React.createElement(Card, {
-    title: "Meditation Timer"
+    title: "Meditation Timer",
+    className: "md:h-full",
+    contentClassName: "md:h-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "md:flex md:h-full md:flex-col md:items-center md:justify-center"
   }, /*#__PURE__*/React.createElement(MeditationTimer, {
     onFinish: handleMeditationFinish
-  }))), /*#__PURE__*/React.createElement(Card, {
+  })))), /*#__PURE__*/React.createElement(Card, {
     title: "Weekly Summary"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm grid gap-2"
@@ -1821,7 +1826,8 @@ function App() {
     metricOptions: metricOptions,
     highlights: metricHighlights
   }), /*#__PURE__*/React.createElement(Card, {
-    title: "Stats"
+    title: "Stats",
+    className: "md:col-span-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm grid gap-4"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2381,14 +2387,16 @@ function SectionHeading({
 }
 function Card({
   title,
-  children
+  children,
+  className = "",
+  contentClassName = ""
 }) {
   return /*#__PURE__*/React.createElement("section", {
-    className: "glass-card"
+    className: `glass-card ${className}`
   }, /*#__PURE__*/React.createElement("h2", {
     className: "card-title"
   }, title), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-3 text-sm text-zinc-600 dark:text-zinc-300"
+    className: `grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 ${contentClassName}`
   }, children));
 }
 function ToggleRow({

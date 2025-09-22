@@ -2264,9 +2264,15 @@ function App() {
           <div className="grid gap-4">
             <SectionHeading title="History &amp; Insights" />
             <div className="grid gap-6 md:grid-cols-3">
-              <div ref={timerCardRef}>
-                <Card title="Meditation Timer">
-                  <MeditationTimer onFinish={handleMeditationFinish} />
+              <div ref={timerCardRef} className="md:h-full">
+                <Card
+                  title="Meditation Timer"
+                  className="md:h-full"
+                  contentClassName="md:h-full"
+                >
+                  <div className="md:flex md:h-full md:flex-col md:items-center md:justify-center">
+                    <MeditationTimer onFinish={handleMeditationFinish} />
+                  </div>
                 </Card>
               </div>
 
@@ -2321,7 +2327,7 @@ function App() {
                 highlights={metricHighlights}
               />
 
-              <Card title="Stats">
+              <Card title="Stats" className="md:col-span-3">
                 <div className="text-sm grid gap-4">
                   <div className="grid gap-2">
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
@@ -3010,11 +3016,13 @@ function SectionHeading({ title, description }) {
   );
 }
 
-function Card({ title, children }) {
+function Card({ title, children, className = "", contentClassName = "" }) {
   return (
-    <section className="glass-card">
+    <section className={`glass-card ${className}`}>
       <h2 className="card-title">{title}</h2>
-      <div className="grid gap-3 text-sm text-zinc-600 dark:text-zinc-300">{children}</div>
+      <div className={`grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 ${contentClassName}`}>
+        {children}
+      </div>
     </section>
   );
 }
