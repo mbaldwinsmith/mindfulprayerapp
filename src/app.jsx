@@ -1754,6 +1754,71 @@ function App() {
     }
   }, []);
   const totals = useMemo(() => calcTotals(data), [data]);
+  const statsProgress = useMemo(
+    () => [
+      {
+        key: "breathMinutes",
+        label: "Breath meditation",
+        value: totals.breathMinutes || 0,
+        target: 150,
+        unit: "min",
+      },
+      {
+        key: "jesusPrayerCount",
+        label: "Jesus Prayer",
+        value: totals.jesusPrayerCount || 0,
+        target: 400,
+        unit: "prayers",
+      },
+      {
+        key: "rosaryDecades",
+        label: "Rosary decades",
+        value: totals.rosaryDecades || 0,
+        target: 50,
+        unit: "decades",
+      },
+      {
+        key: "urgesNoted",
+        label: "Urges noted",
+        value: totals.urgesNoted || 0,
+        target: 100,
+        unit: "logs",
+      },
+    ],
+    [totals],
+  );
+  const dailyPracticeTotals = useMemo(
+    () => [
+      { key: "morningConsecration", label: "Morning consecration", value: totals.morningConsecration || 0 },
+      { key: "morningAngelus", label: "Morning Angelus", value: totals.morningAngelus || 0 },
+      { key: "morningBenedictus", label: "Recite the Benedictus", value: totals.morningBenedictus || 0 },
+      { key: "middayStillness", label: "Midday stillness pause", value: totals.middayStillness || 0 },
+      { key: "middayAngelus", label: "Midday Angelus", value: totals.middayAngelus || 0 },
+      { key: "middayBodyBlessing", label: "Body blessing", value: totals.middayBodyBlessing || 0 },
+      { key: "eveningExamen", label: "Evening examen", value: totals.eveningExamen || 0 },
+      { key: "eveningAngelus", label: "Evening Angelus", value: totals.eveningAngelus || 0 },
+      { key: "eveningMagnificat", label: "Recite the Magnificat", value: totals.eveningMagnificat || 0 },
+      { key: "eveningActOfContrition", label: "Act of Contrition", value: totals.eveningActOfContrition || 0 },
+      { key: "eveningGratitudePrayer", label: "Gratitude prayer", value: totals.eveningGratitudePrayer || 0 },
+    ],
+    [totals],
+  );
+  const weeklyAnchorTotals = useMemo(
+    () => [
+      { key: "weeklyMass", label: "Mass", value: totals.weeklyMass || 0 },
+      { key: "weeklyAdoration", label: "Eucharistic adoration", value: totals.weeklyAdoration || 0 },
+      { key: "weeklyConfession", label: "Confession", value: totals.weeklyConfession || 0 },
+      { key: "weeklyFasting", label: "Fasting", value: totals.weeklyFasting || 0 },
+      { key: "weeklyAccountability", label: "Accountability", value: totals.weeklyAccountability || 0 },
+      { key: "weeklySabbath", label: "Sabbath rest", value: totals.weeklySabbath || 0 },
+      { key: "weeklyService", label: "Service / mercy outreach", value: totals.weeklyService || 0 },
+      { key: "weeklyDirection", label: "Spiritual direction check-in", value: totals.weeklyDirection || 0 },
+    ],
+    [totals],
+  );
+  const totalVictories = totals.victories || 0;
+  const totalLapses = totals.lapses || 0;
+  const totalUrgesNoted = totals.urgesNoted || 0;
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
   const metricConfig = useMemo(
     () => metricOptions.find((opt) => opt.value === selectedMetric) ?? metricOptions[0],
@@ -1972,9 +2037,13 @@ function App() {
           />
           <PracticeSpotlight spotlight={spotlight} onNext={cycleSpotlight} />
           <div className="grid gap-4">
-            <SectionHeading title="Today’s Practice" />
+            <SectionHeading
+              title="Today’s Practice"
+              icon="🌅"
+              description="Mark the rhythm of morning, midday, and evening prayer."
+            />
             <div className="grid gap-6 md:grid-cols-3">
-              <Card title="Morning — Awakening in Christ">
+              <Card title="Morning — Awakening in Christ" accent="sunrise">
                 <ToggleRow
                   label={
                     <a
@@ -2064,7 +2133,7 @@ function App() {
                 />
               </Card>
 
-              <Card title="Midday — Re-centring on Christ">
+              <Card title="Midday — Re-centring on Christ" accent="zenith">
                 <ToggleRow
                   label={
                     <a
@@ -2130,7 +2199,7 @@ function App() {
                 />
               </Card>
 
-              <Card title="Evening — Resting in Christ">
+              <Card title="Evening — Resting in Christ" accent="dusk">
                 <ToggleRow
                   label={
                     <a
@@ -2222,7 +2291,11 @@ function App() {
           </div>
 
           <div className="grid gap-4">
-            <SectionHeading title="Reflection &amp; Journal" />
+            <SectionHeading
+              title="Reflection &amp; Journal"
+              icon="📖"
+              description="Sit with scripture, feelings, and gratitude."
+            />
             <div className="grid gap-6 md:grid-cols-3">
               <Card title="Scripture Seed">
             <textarea
@@ -2262,7 +2335,11 @@ function App() {
           </div>
 
           <div className="grid gap-4">
-            <SectionHeading title="History &amp; Insights" />
+            <SectionHeading
+              title="History &amp; Insights"
+              icon="📊"
+              description="Notice trends across recent entries and metrics."
+            />
             <div className="grid gap-6 md:grid-cols-3">
               <div ref={timerCardRef} className="md:h-full">
                 <Card
@@ -2277,36 +2354,65 @@ function App() {
               </div>
 
               <Card title="Weekly Summary">
-                <div className="text-sm grid gap-2">
-                  <div>
-                    Week of <b>{weekStartLabel}</b> –<b> {weekEndLabel}</b>
+                <div className="weekly-summary-card">
+                  <div className="weekly-summary-range">
+                    Week of <strong>{weekStartLabel}</strong> – <strong>{weekEndLabel}</strong>
                   </div>
-                  <div>Breath meditation: <b>{weekSummary.totals.breathMinutes}</b> min</div>
-                  <div>Jesus Prayer: <b>{weekSummary.totals.jesusPrayerCount}</b></div>
-                  <div>Rosary decades: <b>{weekSummary.totals.rosaryDecades}</b></div>
-                  <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                    <div className="flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      <span>Weekly Anchors</span>
-                      <span>
-                        {weekSummary.completedCount}/{weekSummary.totalAnchors} done
+                  <div className="weekly-summary-metric-grid">
+                    <div className="weekly-summary-metric">
+                      <div className="weekly-summary-label">Breath meditation</div>
+                      <ProgressBar
+                        value={weekSummary.totals.breathMinutes}
+                        max={150}
+                        size="sm"
+                        label={`${weekSummary.totals.breathMinutes} min`}
+                      />
+                    </div>
+                    <div className="weekly-summary-metric">
+                      <div className="weekly-summary-label">Jesus Prayer</div>
+                      <ProgressBar
+                        value={weekSummary.totals.jesusPrayerCount}
+                        max={200}
+                        size="sm"
+                        label={`${weekSummary.totals.jesusPrayerCount} prayers`}
+                      />
+                    </div>
+                    <div className="weekly-summary-metric">
+                      <div className="weekly-summary-label">Rosary decades</div>
+                      <ProgressBar
+                        value={weekSummary.totals.rosaryDecades}
+                        max={15}
+                        size="sm"
+                        label={`${weekSummary.totals.rosaryDecades} decades`}
+                      />
+                    </div>
+                  </div>
+                  <div className="weekly-summary-anchors">
+                    <div className="weekly-summary-anchor-header">
+                      <span>Weekly anchors</span>
+                      <span className="weekly-summary-anchor-count">
+                        {weekSummary.completedCount}/{weekSummary.totalAnchors}
                       </span>
                     </div>
-                    <div className="mt-2 grid gap-1">
+                    <ProgressBar
+                      value={weekSummary.completedCount}
+                      max={weekSummary.totalAnchors || 1}
+                      size="sm"
+                      label={`${weekSummary.completedCount} of ${weekSummary.totalAnchors} complete`}
+                    />
+                    <div className="weekly-anchor-pill-grid">
                       {WEEKLY_ANCHORS.map(({ key, label }) => {
                         const complete = weekSummary.anchors[key];
                         return (
-                          <div key={key} className="flex items-center justify-between">
-                            <span>{label}</span>
-                            <span
-                              className={
-                                "text-xs font-medium " +
-                                (complete
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-zinc-500 dark:text-zinc-400")
-                              }
-                            >
-                              {complete ? "Completed" : "Pending"}
+                          <div
+                            key={key}
+                            className={`weekly-anchor-pill ${complete ? "is-complete" : ""}`}
+                            role="listitem"
+                          >
+                            <span className="weekly-anchor-status" aria-hidden="true">
+                              {complete ? "✓" : "•"}
                             </span>
+                            <span>{label}</span>
                           </div>
                         );
                       })}
@@ -2328,163 +2434,100 @@ function App() {
               />
 
               <Card title="Stats" className="md:col-span-3">
-                <div className="text-sm grid gap-4">
-                  <div className="grid gap-2">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Current streak</span>
-                      <span className="tabular-nums font-semibold">
-                        {streak} day{streak === 1 ? "" : "s"}
-                      </span>
+                <div className="stats-card">
+                  <div className="stats-badges">
+                    <span className="streak-badge" aria-label={`Current streak ${streak} days`}>
+                      🔥 {streak} day{streak === 1 ? "" : "s"}
+                    </span>
+                    <span className="streak-badge" aria-label={`Longest streak ${longestStreak} days`}>
+                      🏅 Longest {longestStreak}
+                    </span>
+                    <span className="streak-badge" aria-label={`Total moods logged ${moodSummary.total}`}>
+                      💗 {moodSummary.total} moods
+                    </span>
+                    <span className="streak-badge" aria-label={`Unique tags ${Object.keys(tagSummary).length}`}>
+                      🏷️ {Object.keys(tagSummary).length} tags
+                    </span>
+                  </div>
+                  <div className="stats-progress-grid">
+                    {statsProgress.map((metric) => {
+                      const goalLabel = `Goal ${metric.target.toLocaleString()} ${metric.unit}`;
+                      return (
+                        <div key={metric.key} className="stats-progress-row">
+                          <div className="stats-progress-header">
+                            <span className="stats-progress-label">{metric.label}</span>
+                            <span className="stats-progress-value">
+                              {metric.value.toLocaleString()} {metric.unit}
+                            </span>
+                          </div>
+                          <ProgressBar value={metric.value} max={metric.target} label={goalLabel} />
+                        </div>
+                      );
+                    })}
+                    <div className="stats-progress-row">
+                      <div className="stats-progress-header">
+                        <span className="stats-progress-label">Temptation victories</span>
+                        <span className="stats-progress-value">{totalVictories.toLocaleString()}</span>
+                      </div>
+                      <ProgressBar
+                        value={totalVictories}
+                        max={Math.max(totalUrgesNoted, 1)}
+                        label="vs. urges noted"
+                      />
                     </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Longest streak</span>
-                      <span className="tabular-nums font-semibold">
-                        {longestStreak} day{longestStreak === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Breath meditation (min)</span>
-                      <span className="tabular-nums font-semibold">{totals.breathMinutes}</span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Jesus Prayer (count)</span>
-                      <span className="tabular-nums font-semibold">{totals.jesusPrayerCount}</span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Rosary decades</span>
-                      <span className="tabular-nums font-semibold">{totals.rosaryDecades}</span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Urges noted</span>
-                      <span className="tabular-nums font-semibold">{totals.urgesNoted}</span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Victories over urges</span>
-                      <span className="tabular-nums font-semibold">{totals.victories}</span>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                      <span>Lapses</span>
-                      <span className="tabular-nums font-semibold">{totals.lapses}</span>
+                    <div className="stats-progress-row">
+                      <div className="stats-progress-header">
+                        <span className="stats-progress-label">Lapses noted</span>
+                        <span className="stats-progress-value">{totalLapses.toLocaleString()}</span>
+                      </div>
+                      <ProgressBar
+                        value={totalLapses}
+                        max={Math.max(totalUrgesNoted, 1)}
+                        label="within urges"
+                      />
                     </div>
                   </div>
-
                   {customTotals.length ? (
-                    <div className="grid gap-1">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                        Custom totals to date
-                      </h3>
-                      {customTotals.map((entry) => (
-                        <div
-                          key={entry.id}
-                          className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-                        >
-                          <span>{entry.name}</span>
-                          <span className="tabular-nums font-semibold">
-                            {formatMetricValue(entry.total)} {entry.unit}
-                          </span>
+                    <div className="stats-section">
+                      <h3 className="stats-section-title">Custom totals to date</h3>
+                      <div className="stats-list">
+                        {customTotals.map((entry) => (
+                          <div key={entry.id} className="stats-list-row">
+                            <span>{entry.name}</span>
+                            <span className="stats-list-value">
+                              {formatMetricValue(entry.total)} {entry.unit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="stats-section">
+                    <h3 className="stats-section-title">Daily practices completed</h3>
+                    <div className="stats-list stats-list-grid">
+                      {dailyPracticeTotals.map((item) => (
+                        <div key={item.key} className="stats-list-row">
+                          <span>{item.label}</span>
+                          <span className="stats-list-value">{item.value.toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
-                  ) : null}
-
-                  <div className="grid gap-1">
-                    <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                      Daily practices completed
-                    </h3>
-                    <div className="grid gap-1">
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Morning consecration</span>
-                        <span className="tabular-nums font-semibold">{totals.morningConsecration}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Morning Angelus</span>
-                        <span className="tabular-nums font-semibold">{totals.morningAngelus}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Recite the Benedictus</span>
-                        <span className="tabular-nums font-semibold">{totals.morningBenedictus}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Midday stillness pause</span>
-                        <span className="tabular-nums font-semibold">{totals.middayStillness}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Midday Angelus</span>
-                        <span className="tabular-nums font-semibold">{totals.middayAngelus}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Body blessing</span>
-                        <span className="tabular-nums font-semibold">{totals.middayBodyBlessing}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Evening examen</span>
-                        <span className="tabular-nums font-semibold">{totals.eveningExamen}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Evening Angelus</span>
-                        <span className="tabular-nums font-semibold">{totals.eveningAngelus}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Recite the Magnificat</span>
-                        <span className="tabular-nums font-semibold">{totals.eveningMagnificat}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Act of Contrition</span>
-                        <span className="tabular-nums font-semibold">{totals.eveningActOfContrition}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Gratitude prayer</span>
-                        <span className="tabular-nums font-semibold">{totals.eveningGratitudePrayer}</span>
-                      </div>
+                  </div>
+                  <div className="stats-section">
+                    <h3 className="stats-section-title">Weekly anchors completed</h3>
+                    <div className="stats-list stats-list-grid">
+                      {weeklyAnchorTotals.map((item) => (
+                        <div key={item.key} className="stats-list-row">
+                          <span>{item.label}</span>
+                          <span className="stats-list-value">{item.value.toLocaleString()}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-
-                  <div className="grid gap-1">
-                    <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                      Weekly anchors completed
-                    </h3>
-                    <div className="grid gap-1">
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Mass</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyMass}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Eucharistic adoration</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyAdoration}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Confession</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyConfession}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Fasting</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyFasting}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Accountability</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyAccountability}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Sabbath rest</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklySabbath}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Service / mercy outreach</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyService}</span>
-                      </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                        <span>Spiritual direction check-in</span>
-                        <span className="tabular-nums font-semibold">{totals.weeklyDirection}</span>
-                      </div>
-                    </div>
-                  </div>
-
                   {moodSummary.counts.length ? (
-                    <div className="grid gap-1">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                        Mood patterns
-                      </h3>
-                      <div className="flex flex-wrap gap-2 text-xs">
+                    <div className="stats-section">
+                      <h3 className="stats-section-title">Mood patterns</h3>
+                      <div className="stats-chip-row">
                         {moodSummary.counts.map(([mood, count]) => {
                           const meta = getMoodMeta(mood);
                           return (
@@ -2495,19 +2538,16 @@ function App() {
                         })}
                       </div>
                       {latestMoodMeta ? (
-                        <p className="text-[11px] text-zinc-500">
+                        <p className="stats-footnote">
                           Last logged mood: {latestMoodMeta.emoji} {latestMoodMeta.label}
                         </p>
                       ) : null}
                     </div>
                   ) : null}
-
                   {tagSummary.length ? (
-                    <div className="grid gap-1">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                        Frequent tags
-                      </h3>
-                      <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                    <div className="stats-section">
+                      <h3 className="stats-section-title">Frequent tags</h3>
+                      <div className="stats-chip-row">
                         {tagSummary.slice(0, 10).map(([tag, count]) => (
                           <span key={tag} className="chip">
                             #{tag} · {count}
@@ -2533,7 +2573,11 @@ function App() {
           </div>
 
           <div className="grid gap-4">
-            <SectionHeading title="Planning &amp; Preferences" />
+            <SectionHeading
+              title="Planning &amp; Preferences"
+              icon="🧭"
+              description="Fine-tune reminders, safety, and tomorrow’s focus."
+            />
             <div className="grid gap-6 md:grid-cols-2">
               <Card title="Backup / Restore">
                 <BackupControls
@@ -2546,14 +2590,14 @@ function App() {
 
               <Card title="Settings &amp; Safety">
                 <div className="grid gap-2 text-sm">
-                  <label className="flex items-center justify-between gap-2">
-                    <span>Show guided prompts</span>
-                    <input
-                      type="checkbox"
+                  <div className="flex items-center justify-between gap-2">
+                    <span id="show-guided-label">Show guided prompts</span>
+                    <ToggleSwitch
                       checked={preferences.showGuidedPrompts}
-                      onChange={(e) => updatePreferences({ showGuidedPrompts: e.target.checked })}
+                      onChange={(value) => updatePreferences({ showGuidedPrompts: value })}
+                      ariaLabelledBy="show-guided-label"
                     />
-                  </label>
+                  </div>
                   <button
                     className="btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30"
                     onClick={resetApp}
@@ -2670,24 +2714,24 @@ function RecentEntriesCard({
         <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">{summaryText}</span>
       </div>
 
-      <div className="grid gap-3">
-        {hasEntries ? (
-          entries.map((entry) => (
+      {hasEntries ? (
+        <div className="timeline">
+          {entries.map((entry) => (
             <RecentEntryRow
               key={entry.date}
               day={entry}
               onSelectDate={onSelectDate}
               customMetricMap={customMetricMap}
             />
-          ))
-        ) : (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {hasFilter
-              ? "Log a reflection with this tag to see it here."
-              : "Once you log prayers or notes, a quick history appears for gentle review."}
-          </p>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {hasFilter
+            ? "Log a reflection with this tag to see it here."
+            : "Once you log prayers or notes, a quick history appears for gentle review."}
+        </p>
+      )}
     </Card>
   );
 }
@@ -2766,69 +2810,74 @@ function RecentEntryRow({ day, onSelectDate, customMetricMap }) {
 
   const scripturePreview = truncateText(day.scripture, 100);
   const notesPreview = truncateText(day.notes, 140);
+  const dailyTotal = dailyFlags.length || 1;
+  const completionRatio = dailyCompleted / dailyTotal;
+  const badgeState = completionRatio >= 0.75 ? "complete" : completionRatio >= 0.4 ? "active" : "pending";
+  const badgeDay = Number.isNaN(date.getTime()) ? "--" : String(date.getDate()).padStart(2, "0");
+  const badgeMonth = Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
 
   return (
-    <article className="rounded-2xl border border-white/60 bg-white/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-baseline gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-          <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{formattedDate}</span>
-          <span>Daily {dailyCompleted}/5</span>
-          <span>Weekly {weeklyCompleted}/{WEEKLY_ANCHOR_KEYS.length}</span>
-        </div>
-        <button
-          type="button"
-          className="btn ml-auto text-xs px-3 py-1"
-          onClick={() => onSelectDate(day.date)}
-        >
-          Review day
-        </button>
+    <article className="timeline-entry">
+      <div className={`timeline-badge timeline-badge-${badgeState}`} aria-hidden="true">
+        <span className="timeline-badge-day">{badgeDay}</span>
+        <span className="timeline-badge-month">{badgeMonth}</span>
       </div>
-      {moodLabel ? (
-        <div className="text-xs text-zinc-500 dark:text-zinc-400">
-          Mood: <span className="font-medium text-zinc-700 dark:text-zinc-200">{moodLabel}</span>
+      <div className="timeline-card-body">
+        <div className="timeline-card-header">
+          <div>
+            <div className="timeline-entry-title">{formattedDate}</div>
+            <div className="timeline-entry-metrics">
+              <span>Daily {dailyCompleted}/{dailyTotal}</span>
+              <span>Weekly {weeklyCompleted}/{WEEKLY_ANCHOR_KEYS.length}</span>
+            </div>
+          </div>
+          <button type="button" className="btn text-xs px-3 py-1" onClick={() => onSelectDate(day.date)}>
+            Review day
+          </button>
         </div>
-      ) : null}
-      {highlightParts.length ? (
-        <div className="text-xs text-zinc-500 dark:text-zinc-400">{highlightParts.join(" · ")}</div>
-      ) : null}
-      {practiceBadges.length ? (
-        <div className="flex flex-wrap gap-2">
-          {practiceBadges.map((badge) => (
-            <span key={badge} className="chip text-[11px]">
-              {badge}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {weeklyCompletedNames.length ? (
-        <div className="text-xs text-zinc-500 dark:text-zinc-400">
-          Weekly anchors: {weeklyCompletedNames.join(", ")}
-        </div>
-      ) : null}
-      {customMetricChips.length ? (
-        <div className="flex flex-wrap gap-2">
-          {customMetricChips.map((chip) => (
-            <span key={chip.id} className="chip text-[11px]">
-              {chip.label}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {tags.length ? (
-        <div className="flex flex-wrap gap-2">
-          {tags.slice(0, 5).map((tag) => (
-            <span key={tag} className="chip text-[11px]">
-              #{tag}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {scripturePreview ? (
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">Scripture: {scripturePreview}</p>
-      ) : null}
-      {notesPreview ? (
-        <p className="text-xs italic text-zinc-500 dark:text-zinc-400">Journal: {notesPreview}</p>
-      ) : null}
+        {moodLabel ? (
+          <div className="timeline-meta">
+            Mood: <span className="timeline-meta-strong">{moodLabel}</span>
+          </div>
+        ) : null}
+        {highlightParts.length ? (
+          <div className="timeline-meta">{highlightParts.join(" · ")}</div>
+        ) : null}
+        {practiceBadges.length ? (
+          <div className="timeline-chip-row">
+            {practiceBadges.map((badge) => (
+              <span key={badge} className="chip text-[11px]">
+                {badge}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {weeklyCompletedNames.length ? (
+          <div className="timeline-meta">Weekly anchors: {weeklyCompletedNames.join(", ")}</div>
+        ) : null}
+        {customMetricChips.length ? (
+          <div className="timeline-chip-row">
+            {customMetricChips.map((chip) => (
+              <span key={chip.id} className="chip text-[11px]">
+                {chip.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {tags.length ? (
+          <div className="timeline-chip-row">
+            {tags.slice(0, 5).map((tag) => (
+              <span key={tag} className="chip text-[11px]">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {scripturePreview ? <p className="timeline-meta">Scripture: {scripturePreview}</p> : null}
+        {notesPreview ? <p className="timeline-meta italic">Journal: {notesPreview}</p> : null}
+      </div>
     </article>
   );
 }
@@ -3003,22 +3052,29 @@ function formatMetricValue(value) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-function SectionHeading({ title, description }) {
+function SectionHeading({ title, description, icon }) {
   return (
-    <div className="section-heading flex flex-col gap-1">
-      <div className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-700/80 dark:text-emerald-200/80">
-        {title}
+    <div className="section-heading">
+      <div className="section-heading-header">
+        {icon ? (
+          <span className="section-heading-icon" aria-hidden="true">
+            {icon}
+          </span>
+        ) : null}
+        <div className="section-heading-copy">
+          <div className="section-heading-title">{title}</div>
+          {description ? <p className="section-heading-description">{description}</p> : null}
+        </div>
       </div>
-      {description ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">{description}</p>
-      ) : null}
+      <div className="section-heading-underline" aria-hidden="true" />
     </div>
   );
 }
 
-function Card({ title, children, className = "", contentClassName = "" }) {
+function Card({ title, children, className = "", contentClassName = "", accent }) {
+  const accentClass = accent ? `card-variant-${accent}` : "";
   return (
-    <section className={`glass-card ${className}`}>
+    <section className={`glass-card ${accentClass} ${className}`}>
       <h2 className="card-title">{title}</h2>
       <div className={`grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 ${contentClassName}`}>
         {children}
@@ -3027,17 +3083,64 @@ function Card({ title, children, className = "", contentClassName = "" }) {
   );
 }
 
-function ToggleRow({ label, checked, onChange }) {
+function ToggleSwitch({ checked, onChange, disabled = false, ariaLabel, ariaLabelledBy }) {
+  const handleToggle = useCallback(() => {
+    if (disabled) return;
+    onChange(!checked);
+  }, [checked, disabled, onChange]);
+
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (disabled) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onChange(!checked);
+      }
+    },
+    [checked, disabled, onChange],
+  );
+
   return (
-    <label className="flex items-center justify-between gap-3 pr-2">
-      <span>{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-5 w-5 accent-emerald-600"
-      />
-    </label>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      onClick={handleToggle}
+      onKeyDown={handleKeyDown}
+      className={`toggle-switch ${checked ? "toggle-switch-on" : ""} ${disabled ? "toggle-switch-disabled" : ""}`}
+      disabled={disabled}
+    >
+      <span className="toggle-switch-track">
+        <span className="toggle-switch-thumb" />
+      </span>
+    </button>
+  );
+}
+
+function ToggleRow({ label, checked, onChange }) {
+  const labelId = useMemo(() => `toggle-${randomId()}`, []);
+  return (
+    <div className="flex items-center justify-between gap-3 pr-2">
+      <span id={labelId} className="toggle-row-label">
+        {label}
+      </span>
+      <ToggleSwitch checked={checked} onChange={onChange} ariaLabelledBy={labelId} />
+    </div>
+  );
+}
+
+function ProgressBar({ value = 0, max = 1, label, size = "md" }) {
+  const ratio = max > 0 ? clamp(value / max, 0, 1) : 0;
+  const percent = Math.round(ratio * 100);
+  return (
+    <div className={`progress-bar ${size === "sm" ? "progress-bar-sm" : ""}`}>
+      <div className="progress-bar-track">
+        <div className="progress-bar-fill" style={{ width: `${percent}%` }} />
+      </div>
+      {label ? <div className="progress-bar-label">{label}</div> : null}
+    </div>
   );
 }
 
@@ -3507,24 +3610,27 @@ function ReminderPlanner({ reminders, updatePreferences, allowNotifications, req
           Set gentle alerts (while the app is open) for key rhythms. Enable browser notifications for extra nudges.
         </p>
       </div>
-      {Object.entries(reminders).map(([id, reminder]) => (
-        <div key={id} className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
+      {Object.entries(reminders).map(([id, reminder]) => {
+        const labelId = `reminder-${id}`;
+        return (
+          <div key={id} className="reminder-toggle-row">
+            <ToggleSwitch
               checked={reminder.enabled}
-              onChange={(e) => toggleReminder(id, { enabled: e.target.checked })}
+              onChange={(value) => toggleReminder(id, { enabled: value })}
+              ariaLabelledBy={labelId}
             />
-            <span className="capitalize">{reminder.label || id}</span>
-          </label>
-          <input
-            type="time"
-            value={reminder.time}
-            onChange={(e) => toggleReminder(id, { time: e.target.value })}
-            className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
-          />
-        </div>
-      ))}
+            <span id={labelId} className="capitalize">
+              {reminder.label || id}
+            </span>
+            <input
+              type="time"
+              value={reminder.time}
+              onChange={(e) => toggleReminder(id, { time: e.target.value })}
+              className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+            />
+          </div>
+        );
+      })}
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
         <span>Browser notifications:</span>
         <button
@@ -3692,17 +3798,21 @@ function WeeklyAnchors({ date, setData, data }) {
 
   return (
     <div className="grid gap-2 text-sm">
-      {WEEKLY_ANCHORS.map(({ key, label }) => (
-        <label key={key} className="flex items-center justify-between gap-3">
-          <span className="text-sm text-zinc-700 dark:text-zinc-200">{label}</span>
-          <input
-            type="checkbox"
-            checked={all[key]}
-            onChange={(e) => toggle(key, e.target.checked)}
-            className="h-5 w-5 accent-emerald-600"
-          />
-        </label>
-      ))}
+      {WEEKLY_ANCHORS.map(({ key, label }) => {
+        const labelId = `weekly-anchor-${key}`;
+        return (
+          <div key={key} className="flex items-center justify-between gap-3">
+            <span id={labelId} className="text-sm text-zinc-700 dark:text-zinc-200">
+              {label}
+            </span>
+            <ToggleSwitch
+              checked={all[key]}
+              onChange={(value) => toggle(key, value)}
+              ariaLabelledBy={labelId}
+            />
+          </div>
+        );
+      })}
       <p className="text-xs text-zinc-500">Applies to Sun–Sat of the selected week.</p>
     </div>
   );

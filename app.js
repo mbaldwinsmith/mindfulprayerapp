@@ -1276,6 +1276,112 @@ function App() {
     }
   }, []);
   const totals = useMemo(() => calcTotals(data), [data]);
+  const statsProgress = useMemo(() => [{
+    key: "breathMinutes",
+    label: "Breath meditation",
+    value: totals.breathMinutes || 0,
+    target: 150,
+    unit: "min"
+  }, {
+    key: "jesusPrayerCount",
+    label: "Jesus Prayer",
+    value: totals.jesusPrayerCount || 0,
+    target: 400,
+    unit: "prayers"
+  }, {
+    key: "rosaryDecades",
+    label: "Rosary decades",
+    value: totals.rosaryDecades || 0,
+    target: 50,
+    unit: "decades"
+  }, {
+    key: "urgesNoted",
+    label: "Urges noted",
+    value: totals.urgesNoted || 0,
+    target: 100,
+    unit: "logs"
+  }], [totals]);
+  const dailyPracticeTotals = useMemo(() => [{
+    key: "morningConsecration",
+    label: "Morning consecration",
+    value: totals.morningConsecration || 0
+  }, {
+    key: "morningAngelus",
+    label: "Morning Angelus",
+    value: totals.morningAngelus || 0
+  }, {
+    key: "morningBenedictus",
+    label: "Recite the Benedictus",
+    value: totals.morningBenedictus || 0
+  }, {
+    key: "middayStillness",
+    label: "Midday stillness pause",
+    value: totals.middayStillness || 0
+  }, {
+    key: "middayAngelus",
+    label: "Midday Angelus",
+    value: totals.middayAngelus || 0
+  }, {
+    key: "middayBodyBlessing",
+    label: "Body blessing",
+    value: totals.middayBodyBlessing || 0
+  }, {
+    key: "eveningExamen",
+    label: "Evening examen",
+    value: totals.eveningExamen || 0
+  }, {
+    key: "eveningAngelus",
+    label: "Evening Angelus",
+    value: totals.eveningAngelus || 0
+  }, {
+    key: "eveningMagnificat",
+    label: "Recite the Magnificat",
+    value: totals.eveningMagnificat || 0
+  }, {
+    key: "eveningActOfContrition",
+    label: "Act of Contrition",
+    value: totals.eveningActOfContrition || 0
+  }, {
+    key: "eveningGratitudePrayer",
+    label: "Gratitude prayer",
+    value: totals.eveningGratitudePrayer || 0
+  }], [totals]);
+  const weeklyAnchorTotals = useMemo(() => [{
+    key: "weeklyMass",
+    label: "Mass",
+    value: totals.weeklyMass || 0
+  }, {
+    key: "weeklyAdoration",
+    label: "Eucharistic adoration",
+    value: totals.weeklyAdoration || 0
+  }, {
+    key: "weeklyConfession",
+    label: "Confession",
+    value: totals.weeklyConfession || 0
+  }, {
+    key: "weeklyFasting",
+    label: "Fasting",
+    value: totals.weeklyFasting || 0
+  }, {
+    key: "weeklyAccountability",
+    label: "Accountability",
+    value: totals.weeklyAccountability || 0
+  }, {
+    key: "weeklySabbath",
+    label: "Sabbath rest",
+    value: totals.weeklySabbath || 0
+  }, {
+    key: "weeklyService",
+    label: "Service / mercy outreach",
+    value: totals.weeklyService || 0
+  }, {
+    key: "weeklyDirection",
+    label: "Spiritual direction check-in",
+    value: totals.weeklyDirection || 0
+  }], [totals]);
+  const totalVictories = totals.victories || 0;
+  const totalLapses = totals.lapses || 0;
+  const totalUrgesNoted = totals.urgesNoted || 0;
   const weekSummary = useMemo(() => calcWeekSummary(data, date), [data, date]);
   const metricConfig = useMemo(() => metricOptions.find(opt => opt.value === selectedMetric) ?? metricOptions[0], [metricOptions, selectedMetric]);
   const metricSeries = useMemo(() => buildMetricSeries(data, selectedMetric, metricOptions), [data, selectedMetric, metricOptions]);
@@ -1474,11 +1580,14 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-4"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
-    title: "Today\u2019s Practice"
+    title: "Today\u2019s Practice",
+    icon: "\uD83C\uDF05",
+    description: "Mark the rhythm of morning, midday, and evening prayer."
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-6 md:grid-cols-3"
   }, /*#__PURE__*/React.createElement(Card, {
-    title: "Morning \u2014 Awakening in Christ"
+    title: "Morning \u2014 Awakening in Christ",
+    accent: "sunrise"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: MARIAN_CONSECRATION_URL,
@@ -1563,7 +1672,8 @@ function App() {
       }
     }))
   })), /*#__PURE__*/React.createElement(Card, {
-    title: "Midday \u2014 Re-centring on Christ"
+    title: "Midday \u2014 Re-centring on Christ",
+    accent: "zenith"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: ANGELUS_PRAYER_URL,
@@ -1627,7 +1737,8 @@ function App() {
     setDay: setDay,
     customMetrics: preferences.customMetrics
   })), /*#__PURE__*/React.createElement(Card, {
-    title: "Evening \u2014 Resting in Christ"
+    title: "Evening \u2014 Resting in Christ",
+    accent: "dusk"
   }, /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: ANGELUS_PRAYER_URL,
@@ -1727,7 +1838,9 @@ function App() {
   })))), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-4"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
-    title: "Reflection & Journal"
+    title: "Reflection & Journal",
+    icon: "\uD83D\uDCD6",
+    description: "Sit with scripture, feelings, and gratitude."
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-6 md:grid-cols-3"
   }, /*#__PURE__*/React.createElement(Card, {
@@ -1780,7 +1893,9 @@ function App() {
   })))), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-4"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
-    title: "History & Insights"
+    title: "History & Insights",
+    icon: "\uD83D\uDCCA",
+    description: "Notice trends across recent entries and metrics."
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-6 md:grid-cols-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -1797,13 +1912,51 @@ function App() {
   })))), /*#__PURE__*/React.createElement(Card, {
     title: "Weekly Summary"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm grid gap-2"
-  }, /*#__PURE__*/React.createElement("div", null, "Week of ", /*#__PURE__*/React.createElement("b", null, weekStartLabel), " \u2013", /*#__PURE__*/React.createElement("b", null, " ", weekEndLabel)), /*#__PURE__*/React.createElement("div", null, "Breath meditation: ", /*#__PURE__*/React.createElement("b", null, weekSummary.totals.breathMinutes), " min"), /*#__PURE__*/React.createElement("div", null, "Jesus Prayer: ", /*#__PURE__*/React.createElement("b", null, weekSummary.totals.jesusPrayerCount)), /*#__PURE__*/React.createElement("div", null, "Rosary decades: ", /*#__PURE__*/React.createElement("b", null, weekSummary.totals.rosaryDecades)), /*#__PURE__*/React.createElement("div", {
-    className: "pt-2 border-t border-zinc-200 dark:border-zinc-800"
+    className: "weekly-summary-card"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
-  }, /*#__PURE__*/React.createElement("span", null, "Weekly Anchors"), /*#__PURE__*/React.createElement("span", null, weekSummary.completedCount, "/", weekSummary.totalAnchors, " done")), /*#__PURE__*/React.createElement("div", {
-    className: "mt-2 grid gap-1"
+    className: "weekly-summary-range"
+  }, "Week of ", /*#__PURE__*/React.createElement("strong", null, weekStartLabel), " \u2013 ", /*#__PURE__*/React.createElement("strong", null, weekEndLabel)), /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-metric-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-metric"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-label"
+  }, "Breath meditation"), /*#__PURE__*/React.createElement(ProgressBar, {
+    value: weekSummary.totals.breathMinutes,
+    max: 150,
+    size: "sm",
+    label: `${weekSummary.totals.breathMinutes} min`
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-metric"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-label"
+  }, "Jesus Prayer"), /*#__PURE__*/React.createElement(ProgressBar, {
+    value: weekSummary.totals.jesusPrayerCount,
+    max: 200,
+    size: "sm",
+    label: `${weekSummary.totals.jesusPrayerCount} prayers`
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-metric"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-label"
+  }, "Rosary decades"), /*#__PURE__*/React.createElement(ProgressBar, {
+    value: weekSummary.totals.rosaryDecades,
+    max: 15,
+    size: "sm",
+    label: `${weekSummary.totals.rosaryDecades} decades`
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-anchors"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "weekly-summary-anchor-header"
+  }, /*#__PURE__*/React.createElement("span", null, "Weekly anchors"), /*#__PURE__*/React.createElement("span", {
+    className: "weekly-summary-anchor-count"
+  }, weekSummary.completedCount, "/", weekSummary.totalAnchors)), /*#__PURE__*/React.createElement(ProgressBar, {
+    value: weekSummary.completedCount,
+    max: weekSummary.totalAnchors || 1,
+    size: "sm",
+    label: `${weekSummary.completedCount} of ${weekSummary.totalAnchors} complete`
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "weekly-anchor-pill-grid"
   }, WEEKLY_ANCHORS.map(({
     key,
     label
@@ -1811,10 +1964,12 @@ function App() {
     const complete = weekSummary.anchors[key];
     return /*#__PURE__*/React.createElement("div", {
       key: key,
-      className: "flex items-center justify-between"
-    }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-medium " + (complete ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-500 dark:text-zinc-400")
-    }, complete ? "Completed" : "Pending"));
+      className: `weekly-anchor-pill ${complete ? "is-complete" : ""}`,
+      role: "listitem"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "weekly-anchor-status",
+      "aria-hidden": "true"
+    }, complete ? "✓" : "•"), /*#__PURE__*/React.createElement("span", null, label));
   }))))), /*#__PURE__*/React.createElement(MetricTrendsCard, {
     selectedMetric: selectedMetric,
     setSelectedMetric: setSelectedMetric,
@@ -1829,144 +1984,102 @@ function App() {
     title: "Stats",
     className: "md:col-span-3"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm grid gap-4"
+    className: "stats-card"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-2"
+    className: "stats-badges"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "streak-badge",
+    "aria-label": `Current streak ${streak} days`
+  }, "\uD83D\uDD25 ", streak, " day", streak === 1 ? "" : "s"), /*#__PURE__*/React.createElement("span", {
+    className: "streak-badge",
+    "aria-label": `Longest streak ${longestStreak} days`
+  }, "\uD83C\uDFC5 Longest ", longestStreak), /*#__PURE__*/React.createElement("span", {
+    className: "streak-badge",
+    "aria-label": `Total moods logged ${moodSummary.total}`
+  }, "\uD83D\uDC97 ", moodSummary.total, " moods"), /*#__PURE__*/React.createElement("span", {
+    className: "streak-badge",
+    "aria-label": `Unique tags ${Object.keys(tagSummary).length}`
+  }, "\uD83C\uDFF7\uFE0F ", Object.keys(tagSummary).length, " tags")), /*#__PURE__*/React.createElement("div", {
+    className: "stats-progress-grid"
+  }, statsProgress.map(metric => {
+    const goalLabel = `Goal ${metric.target.toLocaleString()} ${metric.unit}`;
+    return /*#__PURE__*/React.createElement("div", {
+      key: metric.key,
+      className: "stats-progress-row"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "stats-progress-header"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stats-progress-label"
+    }, metric.label), /*#__PURE__*/React.createElement("span", {
+      className: "stats-progress-value"
+    }, metric.value.toLocaleString(), " ", metric.unit)), /*#__PURE__*/React.createElement(ProgressBar, {
+      value: metric.value,
+      max: metric.target,
+      label: goalLabel
+    }));
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "stats-progress-row"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Current streak"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, streak, " day", streak === 1 ? "" : "s")), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Longest streak"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, longestStreak, " day", longestStreak === 1 ? "" : "s")), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Breath meditation (min)"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.breathMinutes)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Jesus Prayer (count)"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.jesusPrayerCount)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Rosary decades"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.rosaryDecades)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Urges noted"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.urgesNoted)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Victories over urges"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.victories)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Lapses"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.lapses))), customTotals.length ? /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
+    className: "stats-progress-header"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stats-progress-label"
+  }, "Temptation victories"), /*#__PURE__*/React.createElement("span", {
+    className: "stats-progress-value"
+  }, totalVictories.toLocaleString())), /*#__PURE__*/React.createElement(ProgressBar, {
+    value: totalVictories,
+    max: Math.max(totalUrgesNoted, 1),
+    label: "vs. urges noted"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "stats-progress-row"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stats-progress-header"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stats-progress-label"
+  }, "Lapses noted"), /*#__PURE__*/React.createElement("span", {
+    className: "stats-progress-value"
+  }, totalLapses.toLocaleString())), /*#__PURE__*/React.createElement(ProgressBar, {
+    value: totalLapses,
+    max: Math.max(totalUrgesNoted, 1),
+    label: "within urges"
+  }))), customTotals.length ? /*#__PURE__*/React.createElement("div", {
+    className: "stats-section"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
-  }, "Custom totals to date"), customTotals.map(entry => /*#__PURE__*/React.createElement("div", {
+    className: "stats-section-title"
+  }, "Custom totals to date"), /*#__PURE__*/React.createElement("div", {
+    className: "stats-list"
+  }, customTotals.map(entry => /*#__PURE__*/React.createElement("div", {
     key: entry.id,
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
+    className: "stats-list-row"
   }, /*#__PURE__*/React.createElement("span", null, entry.name), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, formatMetricValue(entry.total), " ", entry.unit)))) : null, /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
+    className: "stats-list-value"
+  }, formatMetricValue(entry.total), " ", entry.unit))))) : null, /*#__PURE__*/React.createElement("div", {
+    className: "stats-section"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+    className: "stats-section-title"
   }, "Daily practices completed"), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Morning consecration"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.morningConsecration)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Morning Angelus"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.morningAngelus)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Recite the Benedictus"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.morningBenedictus)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Midday stillness pause"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.middayStillness)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Midday Angelus"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.middayAngelus)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Body blessing"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.middayBodyBlessing)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Evening examen"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.eveningExamen)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Evening Angelus"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.eveningAngelus)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Recite the Magnificat"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.eveningMagnificat)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Act of Contrition"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.eveningActOfContrition)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Gratitude prayer"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.eveningGratitudePrayer)))), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
+    className: "stats-list stats-list-grid"
+  }, dailyPracticeTotals.map(item => /*#__PURE__*/React.createElement("div", {
+    key: item.key,
+    className: "stats-list-row"
+  }, /*#__PURE__*/React.createElement("span", null, item.label), /*#__PURE__*/React.createElement("span", {
+    className: "stats-list-value"
+  }, item.value.toLocaleString()))))), /*#__PURE__*/React.createElement("div", {
+    className: "stats-section"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+    className: "stats-section-title"
   }, "Weekly anchors completed"), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Mass"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyMass)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Eucharistic adoration"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyAdoration)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Confession"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyConfession)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Fasting"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyFasting)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Accountability"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyAccountability)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Sabbath rest"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklySabbath)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Service / mercy outreach"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyService)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Spiritual direction check-in"), /*#__PURE__*/React.createElement("span", {
-    className: "tabular-nums font-semibold"
-  }, totals.weeklyDirection)))), moodSummary.counts.length ? /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
+    className: "stats-list stats-list-grid"
+  }, weeklyAnchorTotals.map(item => /*#__PURE__*/React.createElement("div", {
+    key: item.key,
+    className: "stats-list-row"
+  }, /*#__PURE__*/React.createElement("span", null, item.label), /*#__PURE__*/React.createElement("span", {
+    className: "stats-list-value"
+  }, item.value.toLocaleString()))))), moodSummary.counts.length ? /*#__PURE__*/React.createElement("div", {
+    className: "stats-section"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+    className: "stats-section-title"
   }, "Mood patterns"), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap gap-2 text-xs"
+    className: "stats-chip-row"
   }, moodSummary.counts.map(([mood, count]) => {
     const meta = getMoodMeta(mood);
     return /*#__PURE__*/React.createElement("span", {
@@ -1974,13 +2087,13 @@ function App() {
       className: "chip"
     }, meta?.emoji, " ", meta?.label || mood, " \xB7 ", count);
   })), latestMoodMeta ? /*#__PURE__*/React.createElement("p", {
-    className: "text-[11px] text-zinc-500"
+    className: "stats-footnote"
   }, "Last logged mood: ", latestMoodMeta.emoji, " ", latestMoodMeta.label) : null) : null, tagSummary.length ? /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-1"
+    className: "stats-section"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-xs font-medium uppercase tracking-wide text-zinc-500"
+    className: "stats-section-title"
   }, "Frequent tags"), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300"
+    className: "stats-chip-row"
   }, tagSummary.slice(0, 10).map(([tag, count]) => /*#__PURE__*/React.createElement("span", {
     key: tag,
     className: "chip"
@@ -1996,7 +2109,9 @@ function App() {
   })), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-4"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
-    title: "Planning & Preferences"
+    title: "Planning & Preferences",
+    icon: "\uD83E\uDDED",
+    description: "Fine-tune reminders, safety, and tomorrow\u2019s focus."
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-6 md:grid-cols-2"
   }, /*#__PURE__*/React.createElement(Card, {
@@ -2010,14 +2125,16 @@ function App() {
     title: "Settings & Safety"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2 text-sm"
-  }, /*#__PURE__*/React.createElement("label", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2"
-  }, /*#__PURE__*/React.createElement("span", null, "Show guided prompts"), /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
+  }, /*#__PURE__*/React.createElement("span", {
+    id: "show-guided-label"
+  }, "Show guided prompts"), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: preferences.showGuidedPrompts,
-    onChange: e => updatePreferences({
-      showGuidedPrompts: e.target.checked
-    })
+    onChange: value => updatePreferences({
+      showGuidedPrompts: value
+    }),
+    ariaLabelledBy: "show-guided-label"
   })), /*#__PURE__*/React.createElement("button", {
     className: "btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30",
     onClick: resetApp
@@ -2117,16 +2234,16 @@ function RecentEntriesCard({
     onClick: () => onSelectTag("")
   }, "Clear filter") : null, /*#__PURE__*/React.createElement("span", {
     className: "ml-auto text-[11px] text-zinc-500 dark:text-zinc-400"
-  }, summaryText)), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-3"
-  }, hasEntries ? entries.map(entry => /*#__PURE__*/React.createElement(RecentEntryRow, {
+  }, summaryText)), hasEntries ? /*#__PURE__*/React.createElement("div", {
+    className: "timeline"
+  }, entries.map(entry => /*#__PURE__*/React.createElement(RecentEntryRow, {
     key: entry.date,
     day: entry,
     onSelectDate: onSelectDate,
     customMetricMap: customMetricMap
-  })) : /*#__PURE__*/React.createElement("p", {
+  }))) : /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500 dark:text-zinc-400"
-  }, hasFilter ? "Log a reflection with this tag to see it here." : "Once you log prayers or notes, a quick history appears for gentle review.")));
+  }, hasFilter ? "Log a reflection with this tag to see it here." : "Once you log prayers or notes, a quick history appears for gentle review."));
 }
 function RecentEntryRow({
   day,
@@ -2181,46 +2298,62 @@ function RecentEntryRow({
   const tags = Array.isArray(day.contextTags) ? day.contextTags.map(tag => String(tag || "").trim()).filter(Boolean) : [];
   const scripturePreview = truncateText(day.scripture, 100);
   const notesPreview = truncateText(day.notes, 140);
+  const dailyTotal = dailyFlags.length || 1;
+  const completionRatio = dailyCompleted / dailyTotal;
+  const badgeState = completionRatio >= 0.75 ? "complete" : completionRatio >= 0.4 ? "active" : "pending";
+  const badgeDay = Number.isNaN(date.getTime()) ? "--" : String(date.getDate()).padStart(2, "0");
+  const badgeMonth = Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, {
+    month: "short"
+  }).toUpperCase();
   return /*#__PURE__*/React.createElement("article", {
-    className: "rounded-2xl border border-white/60 bg-white/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10"
+    className: "timeline-entry"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap items-center gap-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap items-baseline gap-2 text-xs text-zinc-500 dark:text-zinc-400"
+    className: `timeline-badge timeline-badge-${badgeState}`,
+    "aria-hidden": "true"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "text-sm font-semibold text-zinc-800 dark:text-zinc-100"
-  }, formattedDate), /*#__PURE__*/React.createElement("span", null, "Daily ", dailyCompleted, "/5"), /*#__PURE__*/React.createElement("span", null, "Weekly ", weeklyCompleted, "/", WEEKLY_ANCHOR_KEYS.length)), /*#__PURE__*/React.createElement("button", {
+    className: "timeline-badge-day"
+  }, badgeDay), /*#__PURE__*/React.createElement("span", {
+    className: "timeline-badge-month"
+  }, badgeMonth)), /*#__PURE__*/React.createElement("div", {
+    className: "timeline-card-body"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "timeline-card-header"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "timeline-entry-title"
+  }, formattedDate), /*#__PURE__*/React.createElement("div", {
+    className: "timeline-entry-metrics"
+  }, /*#__PURE__*/React.createElement("span", null, "Daily ", dailyCompleted, "/", dailyTotal), /*#__PURE__*/React.createElement("span", null, "Weekly ", weeklyCompleted, "/", WEEKLY_ANCHOR_KEYS.length))), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    className: "btn ml-auto text-xs px-3 py-1",
+    className: "btn text-xs px-3 py-1",
     onClick: () => onSelectDate(day.date)
   }, "Review day")), moodLabel ? /*#__PURE__*/React.createElement("div", {
-    className: "text-xs text-zinc-500 dark:text-zinc-400"
+    className: "timeline-meta"
   }, "Mood: ", /*#__PURE__*/React.createElement("span", {
-    className: "font-medium text-zinc-700 dark:text-zinc-200"
+    className: "timeline-meta-strong"
   }, moodLabel)) : null, highlightParts.length ? /*#__PURE__*/React.createElement("div", {
-    className: "text-xs text-zinc-500 dark:text-zinc-400"
+    className: "timeline-meta"
   }, highlightParts.join(" · ")) : null, practiceBadges.length ? /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap gap-2"
+    className: "timeline-chip-row"
   }, practiceBadges.map(badge => /*#__PURE__*/React.createElement("span", {
     key: badge,
     className: "chip text-[11px]"
   }, badge))) : null, weeklyCompletedNames.length ? /*#__PURE__*/React.createElement("div", {
-    className: "text-xs text-zinc-500 dark:text-zinc-400"
+    className: "timeline-meta"
   }, "Weekly anchors: ", weeklyCompletedNames.join(", ")) : null, customMetricChips.length ? /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap gap-2"
+    className: "timeline-chip-row"
   }, customMetricChips.map(chip => /*#__PURE__*/React.createElement("span", {
     key: chip.id,
     className: "chip text-[11px]"
   }, chip.label))) : null, tags.length ? /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap gap-2"
+    className: "timeline-chip-row"
   }, tags.slice(0, 5).map(tag => /*#__PURE__*/React.createElement("span", {
     key: tag,
     className: "chip text-[11px]"
   }, "#", tag))) : null, scripturePreview ? /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-zinc-500 dark:text-zinc-400"
+    className: "timeline-meta"
   }, "Scripture: ", scripturePreview) : null, notesPreview ? /*#__PURE__*/React.createElement("p", {
-    className: "text-xs italic text-zinc-500 dark:text-zinc-400"
-  }, "Journal: ", notesPreview) : null);
+    className: "timeline-meta italic"
+  }, "Journal: ", notesPreview) : null));
 }
 function MetricTrendsCard({
   selectedMetric,
@@ -2375,43 +2508,114 @@ function formatMetricValue(value) {
 }
 function SectionHeading({
   title,
-  description
+  description,
+  icon
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "section-heading flex flex-col gap-1"
+    className: "section-heading"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-xs font-semibold uppercase tracking-[0.35em] text-emerald-700/80 dark:text-emerald-200/80"
+    className: "section-heading-header"
+  }, icon ? /*#__PURE__*/React.createElement("span", {
+    className: "section-heading-icon",
+    "aria-hidden": "true"
+  }, icon) : null, /*#__PURE__*/React.createElement("div", {
+    className: "section-heading-copy"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "section-heading-title"
   }, title), description ? /*#__PURE__*/React.createElement("p", {
-    className: "text-sm text-zinc-600 dark:text-zinc-300"
-  }, description) : null);
+    className: "section-heading-description"
+  }, description) : null)), /*#__PURE__*/React.createElement("div", {
+    className: "section-heading-underline",
+    "aria-hidden": "true"
+  }));
 }
 function Card({
   title,
   children,
   className = "",
-  contentClassName = ""
+  contentClassName = "",
+  accent
 }) {
+  const accentClass = accent ? `card-variant-${accent}` : "";
   return /*#__PURE__*/React.createElement("section", {
-    className: `glass-card ${className}`
+    className: `glass-card ${accentClass} ${className}`
   }, /*#__PURE__*/React.createElement("h2", {
     className: "card-title"
   }, title), /*#__PURE__*/React.createElement("div", {
     className: `grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 ${contentClassName}`
   }, children));
 }
+function ToggleSwitch({
+  checked,
+  onChange,
+  disabled = false,
+  ariaLabel,
+  ariaLabelledBy
+}) {
+  const handleToggle = useCallback(() => {
+    if (disabled) return;
+    onChange(!checked);
+  }, [checked, disabled, onChange]);
+  const handleKeyDown = useCallback(event => {
+    if (disabled) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onChange(!checked);
+    }
+  }, [checked, disabled, onChange]);
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "switch",
+    "aria-checked": checked,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledBy,
+    onClick: handleToggle,
+    onKeyDown: handleKeyDown,
+    className: `toggle-switch ${checked ? "toggle-switch-on" : ""} ${disabled ? "toggle-switch-disabled" : ""}`,
+    disabled: disabled
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "toggle-switch-track"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "toggle-switch-thumb"
+  })));
+}
 function ToggleRow({
   label,
   checked,
   onChange
 }) {
-  return /*#__PURE__*/React.createElement("label", {
+  const labelId = useMemo(() => `toggle-${randomId()}`, []);
+  return /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-3 pr-2"
-  }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
+  }, /*#__PURE__*/React.createElement("span", {
+    id: labelId,
+    className: "toggle-row-label"
+  }, label), /*#__PURE__*/React.createElement(ToggleSwitch, {
     checked: checked,
-    onChange: e => onChange(e.target.checked),
-    className: "h-5 w-5 accent-emerald-600"
+    onChange: onChange,
+    ariaLabelledBy: labelId
   }));
+}
+function ProgressBar({
+  value = 0,
+  max = 1,
+  label,
+  size = "md"
+}) {
+  const ratio = max > 0 ? clamp(value / max, 0, 1) : 0;
+  const percent = Math.round(ratio * 100);
+  return /*#__PURE__*/React.createElement("div", {
+    className: `progress-bar ${size === "sm" ? "progress-bar-sm" : ""}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "progress-bar-track"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "progress-bar-fill",
+    style: {
+      width: `${percent}%`
+    }
+  })), label ? /*#__PURE__*/React.createElement("div", {
+    className: "progress-bar-label"
+  }, label) : null);
 }
 function RosaryMysteryNote({
   mystery
@@ -2858,27 +3062,29 @@ function ReminderPlanner({
     className: "text-sm font-medium"
   }, "Daily reminder times"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
-  }, "Set gentle alerts (while the app is open) for key rhythms. Enable browser notifications for extra nudges.")), Object.entries(reminders).map(([id, reminder]) => /*#__PURE__*/React.createElement("div", {
-    key: id,
-    className: "flex flex-wrap items-center gap-2"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "inline-flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    checked: reminder.enabled,
-    onChange: e => toggleReminder(id, {
-      enabled: e.target.checked
-    })
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "capitalize"
-  }, reminder.label || id)), /*#__PURE__*/React.createElement("input", {
-    type: "time",
-    value: reminder.time,
-    onChange: e => toggleReminder(id, {
-      time: e.target.value
-    }),
-    className: "rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
-  }))), /*#__PURE__*/React.createElement("div", {
+  }, "Set gentle alerts (while the app is open) for key rhythms. Enable browser notifications for extra nudges.")), Object.entries(reminders).map(([id, reminder]) => {
+    const labelId = `reminder-${id}`;
+    return /*#__PURE__*/React.createElement("div", {
+      key: id,
+      className: "reminder-toggle-row"
+    }, /*#__PURE__*/React.createElement(ToggleSwitch, {
+      checked: reminder.enabled,
+      onChange: value => toggleReminder(id, {
+        enabled: value
+      }),
+      ariaLabelledBy: labelId
+    }), /*#__PURE__*/React.createElement("span", {
+      id: labelId,
+      className: "capitalize"
+    }, reminder.label || id), /*#__PURE__*/React.createElement("input", {
+      type: "time",
+      value: reminder.time,
+      onChange: e => toggleReminder(id, {
+        time: e.target.value
+      }),
+      className: "rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1"
+    }));
+  }), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap items-center gap-2 text-xs text-zinc-500"
   }, /*#__PURE__*/React.createElement("span", null, "Browser notifications:"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
@@ -3066,17 +3272,20 @@ function WeeklyAnchors({
   }, WEEKLY_ANCHORS.map(({
     key,
     label
-  }) => /*#__PURE__*/React.createElement("label", {
-    key: key,
-    className: "flex items-center justify-between gap-3"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-sm text-zinc-700 dark:text-zinc-200"
-  }, label), /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    checked: all[key],
-    onChange: e => toggle(key, e.target.checked),
-    className: "h-5 w-5 accent-emerald-600"
-  }))), /*#__PURE__*/React.createElement("p", {
+  }) => {
+    const labelId = `weekly-anchor-${key}`;
+    return /*#__PURE__*/React.createElement("div", {
+      key: key,
+      className: "flex items-center justify-between gap-3"
+    }, /*#__PURE__*/React.createElement("span", {
+      id: labelId,
+      className: "text-sm text-zinc-700 dark:text-zinc-200"
+    }, label), /*#__PURE__*/React.createElement(ToggleSwitch, {
+      checked: all[key],
+      onChange: value => toggle(key, value),
+      ariaLabelledBy: labelId
+    }));
+  }), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
   }, "Applies to Sun\u2013Sat of the selected week."));
 }
