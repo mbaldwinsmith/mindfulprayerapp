@@ -2301,7 +2301,7 @@ function App() {
             <textarea
               value={d.scripture}
               onChange={(e) => setDay(date, (x) => ({ ...x, scripture: e.target.value }))}
-              className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
+              className="journal-textarea h-28 w-full"
               placeholder="E.g., ‘Blessed are the pure in heart…’ (Matt 5:8)"
             />
             <ScriptureSeedSuggestion
@@ -2327,7 +2327,7 @@ function App() {
             <textarea
               value={d.notes}
               onChange={(e) => setDay(date, (x) => ({ ...x, notes: e.target.value }))}
-              className="w-full h-28 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
+              className="journal-textarea h-28 w-full"
               placeholder="Graces, struggles, consolations, inspirations…"
             />
               </Card>
@@ -2695,7 +2695,7 @@ function RecentEntriesCard({
             value={selectedTag}
             onChange={(e) => onSelectTag(e.target.value)}
             disabled={!tagOptions.length}
-            className="rounded-md border border-zinc-200 bg-transparent px-2 py-1 text-xs dark:border-zinc-800"
+            className="tag-filter-select text-xs"
             aria-label="Filter history by tag"
           >
             <option value="">All tags</option>
@@ -3303,8 +3303,10 @@ function MeditationTimer({ onFinish }) {
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="text-4xl font-mono tabular-nums">
-        {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+      <div className="timer-display">
+        <span className="timer-display-time">
+          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+        </span>
       </div>
       <div className="flex gap-2">
         <button className="btn" onClick={handleToggle}>
@@ -3488,14 +3490,9 @@ function MoodSelector({ value, onChange }) {
               key={option.value}
               type="button"
               onClick={() => onChange(active ? "" : option.value)}
-              className={
-                "rounded-full px-3 py-1 text-sm transition border " +
-                (active
-                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                  : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300")
-              }
+              className={`mood-chip mood-chip-${option.value}${active ? " is-active" : ""}`}
             >
-              <span className="mr-1">{option.emoji}</span>
+              <span aria-hidden="true">{option.emoji}</span>
               {option.label}
             </button>
           );
@@ -3657,7 +3654,7 @@ function AffirmationBanner({ message, onDismiss }) {
         <span className="text-2xl" aria-hidden="true">
           🕯️
         </span>
-        <div className="flex-1 text-sm leading-relaxed text-emerald-900 dark:text-emerald-100">{message}</div>
+        <div className="flex-1 text-sm leading-relaxed text-emerald-900 dark:text-emerald-50">{message}</div>
         {onDismiss ? (
           <button type="button" className="btn text-xs px-3 py-1" onClick={onDismiss}>
             Dismiss
@@ -3753,7 +3750,7 @@ function PlanTomorrow({ plan, onChange }) {
         value={plan}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Jot a short intention for tomorrow’s prayer rhythm…"
-        className="min-h-[4.5rem] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 p-3 outline-none focus:ring-2 focus:ring-emerald-500"
+        className="journal-textarea min-h-[4.5rem]"
       />
       <p className="text-xs text-zinc-500">
         Tomorrow’s intention appears here for quick review when you begin the day.
