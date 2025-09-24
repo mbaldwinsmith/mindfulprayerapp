@@ -1,6 +1,6 @@
 {
-  "name": "Catholic Mindfulness and Prayer tracker",
-  "short_name": "Catholic Tracker",
+  "name": "Regula",
+  "short_name": "Regula",
   "description": "Catholic mindfulness and prayer tracker with meditation timer, journaling, and weekly anchors.",
   "start_url": "./",
   "scope": "./",

@@ -47,7 +47,7 @@ async function storeDeviceCredential(pin) {
     if (!navigator.credentials || typeof window.PasswordCredential === "undefined") return false;
     const credential = new window.PasswordCredential({
       id: DEVICE_CREDENTIAL_ID,
-      name: "Catholic Mindfulness and Prayer tracker",
+      name: "Regula",
       password: pin,
     });
     await navigator.credentials.store(credential);
@@ -1972,7 +1972,7 @@ function App() {
             <div className="flex items-center gap-4 rounded-3xl border border-white/60 bg-white/75 px-5 py-4 shadow-lg shadow-emerald-500/20 backdrop-blur-xl dark:border-white/10 dark:bg-white/10">
               <img
                 src={BRUSHSTROKE_CROSS}
-                alt="Catholic Mindfulness and Prayer tracker logo"
+                alt="Regula logo"
                 className="h-12 w-12 shrink-0 rounded-2xl border border-white/50 bg-white/70 p-2 shadow-md shadow-emerald-500/10 dark:border-white/10 dark:bg-white/10"
                 width="48"
                 height="48"
@@ -1980,7 +1980,7 @@ function App() {
               />
               <div className="flex flex-col">
                 <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
-                  Catholic Mindfulness and Prayer tracker
+                  Regula
                 </h1>
                 <p className="text-xs text-emerald-600/80 sm:text-sm dark:text-emerald-300/80">
                   Gentle rhythms for prayer, stillness, and compassion.
