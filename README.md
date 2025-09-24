@@ -1,4 +1,4 @@
-# Catholic Mindfulness and Prayer tracker
+# Regula
 
 A zero-backend Progressive Web App (PWA) for cultivating prayer, mindfulness, and self-compassion habits. The tracker runs entirely in the browser, so you can use it anywhere without managing servers or databases.
 
@@ -59,4 +59,4 @@ All practice data lives **entirely in the browser** using `localStorage`. Use th
 
 ## Live app
 
-Try the production deployment here: [Catholic Mindfulness and Prayer tracker on GitHub Pages](https://mbaldwinsmith.github.io/mindfulprayerapp/).
+Try the production deployment here: [Regula on GitHub Pages](https://mbaldwinsmith.github.io/mindfulprayerapp/).
