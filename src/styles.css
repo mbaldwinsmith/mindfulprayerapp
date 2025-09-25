@@ -1194,8 +1194,9 @@
   }
 
   .timer-display-time {
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
     text-align: center;
     line-height: 1;
@@ -1203,10 +1204,22 @@
       "Liberation Mono", "Courier New", monospace;
     font-size: 2.4rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
     color: rgb(4 120 87);
     text-shadow: 0 12px 28px rgba(16, 185, 129, 0.45);
+  }
+
+  .timer-display-segment {
+    letter-spacing: 0.12em;
+    display: inline-flex;
+  }
+
+  .timer-display-separator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 0.2em;
   }
 
   .dark .timer-display {
