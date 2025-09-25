@@ -1194,13 +1194,14 @@
   }
 
   .timer-display-time {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
     width: 100%;
+    text-align: center;
+    line-height: 1;
     font-family: "JetBrains Mono", "Fira Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
       "Liberation Mono", "Courier New", monospace;
-    font-size: 2.8rem;
+    font-size: 2.4rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     font-variant-numeric: tabular-nums;
