@@ -2301,7 +2301,7 @@ function App() {
             <textarea
               value={d.scripture}
               onChange={(e) => setDay(date, (x) => ({ ...x, scripture: e.target.value }))}
-              className="journal-textarea h-28 w-full"
+              className="journal-textarea scripture-textarea h-28 w-full"
               placeholder="E.g., ‘Blessed are the pure in heart…’ (Matt 5:8)"
             />
             <ScriptureSeedSuggestion
