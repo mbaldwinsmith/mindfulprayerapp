@@ -3305,7 +3305,9 @@ function MeditationTimer({ onFinish }) {
     <div className="flex flex-col items-center gap-3">
       <div className="timer-display">
         <span className="timer-display-time">
-          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+          <span className="timer-display-segment">{String(mins).padStart(2, "0")}</span>
+          <span className="timer-display-separator">:</span>
+          <span className="timer-display-segment">{String(secs).padStart(2, "0")}</span>
         </span>
       </div>
       <div className="flex gap-2">

@@ -2778,7 +2778,13 @@ function MeditationTimer({
     className: "timer-display"
   }, /*#__PURE__*/React.createElement("span", {
     className: "timer-display-time"
-  }, String(mins).padStart(2, "0"), ":", String(secs).padStart(2, "0"))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "timer-display-segment"
+  }, String(mins).padStart(2, "0")), /*#__PURE__*/React.createElement("span", {
+    className: "timer-display-separator"
+  }, ":"), /*#__PURE__*/React.createElement("span", {
+    className: "timer-display-segment"
+  }, String(secs).padStart(2, "0")))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn",
