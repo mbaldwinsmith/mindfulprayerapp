@@ -1851,7 +1851,7 @@ function App() {
       ...x,
       scripture: e.target.value
     })),
-    className: "journal-textarea h-28 w-full",
+    className: "journal-textarea scripture-textarea h-28 w-full",
     placeholder: "E.g., \u2018Blessed are the pure in heart\u2026\u2019 (Matt 5:8)"
   }), /*#__PURE__*/React.createElement(ScriptureSeedSuggestion, {
     suggestion: scriptureSuggestion,
