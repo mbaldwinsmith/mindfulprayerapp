@@ -181,6 +181,68 @@ function buildDriveErrorNotificationMessage(error, prefix) {
   return `${prefix}: ${detail}`;
 }
 
+function extractGoogleApiErrorDetails(error) {
+  if (!error) return null;
+  const resultError = error?.result?.error;
+  const details = Array.isArray(resultError?.details) ? resultError.details : [];
+  const nestedReasons = details
+    .map((detail) => detail?.reason || detail?.metadata?.reason)
+    .filter(Boolean)
+    .map((reason) => String(reason).toLowerCase());
+  const legacyErrors = Array.isArray(resultError?.errors) ? resultError.errors : [];
+  const legacyReasons = legacyErrors
+    .map((item) => item?.reason)
+    .filter(Boolean)
+    .map((reason) => String(reason).toLowerCase());
+  const reasons = [...legacyReasons, ...nestedReasons];
+  const message =
+    resultError?.message || error?.message || error?.statusText || (typeof error === "string" ? error : "");
+  const code = resultError?.code ?? error?.code ?? error?.status ?? null;
+  const status = resultError?.status ?? error?.status ?? null;
+  return { code, status, message, reasons };
+}
+
+function maybeWrapDriveApiDisabledError(error) {
+  const details = extractGoogleApiErrorDetails(error);
+  if (!details) return null;
+  const code = Number(details.code);
+  const normalizedMessage = String(details.message || "").toLowerCase();
+  const hasDisabledReason = (details.reasons || []).some((reason) =>
+    ["accessnotconfigured", "servicedisabled", "apihasnotbeenused"].includes(reason),
+  );
+  if (
+    code === 403 &&
+    (hasDisabledReason || normalizedMessage.includes("google drive api has not been used") ||
+      normalizedMessage.includes("enable it by visiting"))
+  ) {
+    const friendly = new Error(
+      "Google Drive sync isn't available because the Google Drive API is disabled for this Regula installation. Ask the site administrator to enable the Drive API for the connected Google Cloud project, then try again.",
+    );
+    friendly.code = "drive_api_disabled";
+    friendly.cause = error;
+    friendly.details = details;
+    return friendly;
+  }
+  return null;
+}
+
+function normalizeDriveApiError(error) {
+  const wrapped = maybeWrapDriveApiDisabledError(error);
+  if (wrapped) return wrapped;
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error);
+  const fallback = new Error(error?.message || error?.statusText || "Drive request failed");
+  fallback.cause = error;
+  return fallback;
+}
+
+function buildDriveErrorNotificationMessage(error, prefix) {
+  if (!error) return prefix;
+  if (error.code === "drive_api_disabled") return error.message;
+  const detail = error?.message || String(error);
+  return `${prefix}: ${detail}`;
+}
+
 function stableStringify(value) {
   const seen = new WeakSet();
   const walk = (input) => {
