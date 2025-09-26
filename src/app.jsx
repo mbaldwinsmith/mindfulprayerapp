@@ -206,6 +206,58 @@ function normalizeDriveApiError(error) {
   return fallback;
 }
 
+function maybeWrapDriveInitError(error) {
+  const details = extractGoogleApiErrorDetails(error);
+  if (!details) return null;
+  const code = Number(details.code ?? details.status ?? NaN);
+  const lowerMessage = String(details.message || "").toLowerCase();
+  const reasons = Array.isArray(details.reasons)
+    ? details.reasons.map((reason) => String(reason).toLowerCase())
+    : [];
+  const currentLocation =
+    typeof window !== "undefined" && window.location
+      ? `${window.location.origin}${window.location.pathname}`
+      : "this site";
+
+  const buildWrappedError = (message, codeName) => {
+    const friendly = new Error(message);
+    friendly.code = codeName;
+    friendly.cause = error;
+    friendly.details = details;
+    return friendly;
+  };
+
+  if (Number.isFinite(code) && code === 502) {
+    const wildcardSuggestion =
+      typeof window !== "undefined" && window.location ? `${window.location.origin}/*` : "your site";
+    return buildWrappedError(
+      `Google returned HTTP 502 while loading the Drive discovery document. This almost always means the API key's HTTP referrer restrictions don't cover ${currentLocation} or the change hasn't fully propagated. Update the restriction to include this URL (for example, ${wildcardSuggestion}) or temporarily remove it, then try again.`,
+      "drive_discovery_referrer_mismatch",
+    );
+  }
+
+  if (
+    reasons.some((reason) =>
+      ["iprefererblocked", "forbidden", "refererblocked", "httprefererblocked"].includes(reason),
+    ) ||
+    lowerMessage.includes("referer")
+  ) {
+    return buildWrappedError(
+      `Google rejected the Drive discovery request because the API key doesn't allow calls from ${currentLocation}. Update the HTTP referrer restriction for your key or create a new unrestricted key to test, then reload the page.`,
+      "drive_discovery_referrer_blocked",
+    );
+  }
+
+  if (lowerMessage.includes("api key not valid") || lowerMessage.includes("invalid key")) {
+    return buildWrappedError(
+      "Google reported that the Drive API key is invalid. Make sure you pasted the full key, the Drive API is enabled for that Cloud project, and try saving it again.",
+      "drive_discovery_invalid_key",
+    );
+  }
+
+  return null;
+}
+
 function buildDriveErrorNotificationMessage(error, prefix) {
   if (!error) return prefix;
   if (error.code === "drive_api_disabled") return error.message;
@@ -2387,9 +2439,16 @@ function useDriveSync({
         }
       } catch (error) {
         if (cancelled || !isMountedRef.current) return;
+        const normalizedError = maybeWrapDriveInitError(error) || error;
         console.error("Google Drive init failed", error);
-        setDriveState((prev) => ({ ...prev, status: "error", error }));
-        notify?.({ type: "error", message: `Google Drive init failed: ${error?.message || error}` });
+        if (normalizedError !== error) {
+          console.error("Google Drive init diagnostic", normalizedError);
+        }
+        setDriveState((prev) => ({ ...prev, status: "error", error: normalizedError }));
+        notify?.({
+          type: "error",
+          message: `Google Drive init failed: ${normalizedError?.message || normalizedError}`,
+        });
       }
     })();
     return () => {
