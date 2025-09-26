@@ -3310,7 +3310,7 @@ function NotificationCenter({
     info: "border-sky-500/80 bg-sky-50/90 text-sky-900 dark:border-sky-400/70 dark:bg-sky-900/40 dark:text-sky-100"
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "pointer-events-none fixed top-4 right-4 z-50 flex w-full max-w-sm flex-col gap-3",
+    className: "pointer-events-none fixed inset-x-4 top-4 z-50 flex max-w-full flex-col gap-3 sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-sm",
     "aria-live": "polite"
   }, notifications.map(note => {
     const tone = toneClasses[note.type] || toneClasses.info;
