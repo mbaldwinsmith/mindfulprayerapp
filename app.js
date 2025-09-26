@@ -9,49 +9,11 @@ const BRUSHSTROKE_CROSS = typeof window !== "undefined" && window.BRUSHSTROKE_CR
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymd = d => d.toISOString().slice(0, 10);
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 const STORE_KEY = "zc_tracker_v1";
-const SECURE_STORE_KEY = "zc_tracker_secure_v1";
-const PIN_KEY = "zc_pin_v1";
 const THEME_KEY = "zc_theme";
 const PREFS_KEY = "zc_preferences_v1";
 const REMINDER_STATE_KEY = "zc_reminder_state_v1";
-const DEVICE_CREDENTIAL_ID = "mindful-prayer-pin";
-const BASELINE_ITERATIONS = 120000;
-function toBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-function fromBase64(base64) {
-  const binary = atob(base64);
-  const len = binary.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
 const randomId = () => Math.random().toString(36).slice(2, 10);
-async function storeDeviceCredential(pin) {
-  try {
-    if (!navigator.credentials || typeof window.PasswordCredential === "undefined") return false;
-    const credential = new window.PasswordCredential({
-      id: DEVICE_CREDENTIAL_ID,
-      name: "Regula",
-      password: pin
-    });
-    await navigator.credentials.store(credential);
-    return true;
-  } catch (e) {
-    console.warn("Unable to store credential", e);
-    return false;
-  }
-}
 const blankDay = date => ({
   date,
   scripture: "",
@@ -95,48 +57,6 @@ const blankDay = date => ({
   contextTags: [],
   customMetrics: {}
 });
-async function deriveKeyMaterial(pin, saltBuffer, iterations = BASELINE_ITERATIONS) {
-  const baseKey = await crypto.subtle.importKey("raw", textEncoder.encode(pin), "PBKDF2", false, ["deriveBits", "deriveKey"]);
-  const params = {
-    name: "PBKDF2",
-    salt: saltBuffer,
-    iterations,
-    hash: "SHA-256"
-  };
-  const key = await crypto.subtle.deriveKey(params, baseKey, {
-    name: "AES-GCM",
-    length: 256
-  }, false, ["encrypt", "decrypt"]);
-  const bits = await crypto.subtle.deriveBits(params, baseKey, 256);
-  return {
-    key,
-    bits
-  };
-}
-async function encryptJSON(key, data) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const payload = textEncoder.encode(JSON.stringify(data));
-  const ciphertext = await crypto.subtle.encrypt({
-    name: "AES-GCM",
-    iv
-  }, key, payload);
-  return {
-    iv: toBase64(iv.buffer),
-    data: toBase64(ciphertext)
-  };
-}
-async function decryptJSON(key, payload) {
-  if (!payload) return {};
-  const obj = typeof payload === "string" ? JSON.parse(payload) : payload;
-  const iv = fromBase64(obj.iv);
-  const ciphertext = fromBase64(obj.data);
-  const decrypted = await crypto.subtle.decrypt({
-    name: "AES-GCM",
-    iv: new Uint8Array(iv)
-  }, key, ciphertext);
-  const text = textDecoder.decode(decrypted);
-  return JSON.parse(text);
-}
 const WEEKLY_ANCHORS = [{
   key: "mass",
   label: "Sunday Mass"
@@ -838,8 +758,6 @@ async function clearAppStorage() {
     await Promise.all(regs.map(r => r.unregister()));
   }
   localStorage.removeItem(STORE_KEY);
-  localStorage.removeItem(SECURE_STORE_KEY);
-  localStorage.removeItem(PIN_KEY);
   localStorage.removeItem(THEME_KEY);
   localStorage.removeItem(PREFS_KEY);
   localStorage.removeItem(REMINDER_STATE_KEY);
@@ -1032,60 +950,29 @@ function useReminders(reminders, allowNotifications) {
     requestNotifications
   };
 }
-function useData({
-  hasPIN,
-  unlocked,
-  encryptionKey,
-  unlockGeneration
-}) {
+function useData() {
   const [data, setDataState] = useState({});
   const [ready, setReady] = useState(false);
-  const loadData = useCallback(async () => {
-    if (hasPIN && !unlocked) {
-      setReady(false);
-      setDataState({});
-      return;
-    }
+  const loadData = useCallback(() => {
     try {
-      if (hasPIN) {
-        const secureRaw = localStorage.getItem(SECURE_STORE_KEY);
-        if (secureRaw && encryptionKey) {
-          const decrypted = await decryptJSON(encryptionKey, JSON.parse(secureRaw));
-          setDataState(decrypted && typeof decrypted === "object" ? decrypted : {});
-        } else {
-          const plain = localStorage.getItem(STORE_KEY);
-          setDataState(plain ? JSON.parse(plain) : {});
-        }
-      } else {
-        const raw = localStorage.getItem(STORE_KEY);
-        setDataState(raw ? JSON.parse(raw) : {});
-      }
+      const raw = localStorage.getItem(STORE_KEY);
+      setDataState(raw ? JSON.parse(raw) : {});
     } catch (e) {
       console.error("Failed to load tracker data", e);
       setDataState({});
     } finally {
       setReady(true);
     }
-  }, [hasPIN, unlocked, encryptionKey]);
+  }, []);
   useEffect(() => {
     loadData();
-  }, [loadData, unlockGeneration, hasPIN, unlocked]);
+  }, [loadData]);
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
     (async () => {
       try {
-        if (hasPIN) {
-          if (!encryptionKey) return;
-          const payload = await encryptJSON(encryptionKey, data);
-          if (!cancelled) {
-            localStorage.setItem(SECURE_STORE_KEY, JSON.stringify(payload));
-            localStorage.removeItem(STORE_KEY);
-          }
-        } else {
-          localStorage.setItem(STORE_KEY, JSON.stringify(data));
-          localStorage.removeItem(SECURE_STORE_KEY);
-        }
+        localStorage.setItem(STORE_KEY, JSON.stringify(data));
       } catch (e) {
         console.error("Failed to persist tracker data", e);
       }
@@ -1093,7 +980,7 @@ function useData({
     return () => {
       cancelled = true;
     };
-  }, [data, ready, hasPIN, encryptionKey]);
+  }, [data, ready]);
   const setData = useCallback(value => {
     setDataState(typeof value === "function" ? value : {
       ...value
@@ -1118,122 +1005,6 @@ function useData({
     ready
   };
 }
-function loadPINInfo() {
-  try {
-    const raw = localStorage.getItem(PIN_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.salt || !parsed?.verifier) return null;
-    return {
-      salt: parsed.salt,
-      verifier: parsed.verifier,
-      iterations: parsed.iterations || BASELINE_ITERATIONS
-    };
-  } catch (e) {
-    console.warn("Failed to parse stored PIN", e);
-    return null;
-  }
-}
-function usePIN() {
-  const initialPinInfoRef = useRef(loadPINInfo());
-  const [pinInfo, setPinInfo] = useState(() => initialPinInfoRef.current);
-  const [unlocked, setUnlocked] = useState(() => !initialPinInfoRef.current);
-  const [encryptionKey, setEncryptionKey] = useState(null);
-  const [unlockGeneration, setUnlockGeneration] = useState(0);
-  const hasPIN = Boolean(pinInfo);
-  const tryUnlock = useCallback(async attempt => {
-    if (!hasPIN) {
-      setUnlocked(true);
-      return {
-        success: true
-      };
-    }
-    if (!attempt) {
-      return {
-        success: false,
-        error: "Enter your 4-digit PIN"
-      };
-    }
-    try {
-      const saltBuffer = fromBase64(pinInfo.salt);
-      const {
-        key,
-        bits
-      } = await deriveKeyMaterial(attempt, saltBuffer, pinInfo.iterations || BASELINE_ITERATIONS);
-      const verifier = toBase64(bits);
-      if (verifier === pinInfo.verifier) {
-        setEncryptionKey(key);
-        setUnlocked(true);
-        setUnlockGeneration(g => g + 1);
-        return {
-          success: true
-        };
-      }
-    } catch (e) {
-      console.warn("PIN unlock failed", e);
-    }
-    return {
-      success: false,
-      error: "Incorrect PIN"
-    };
-  }, [hasPIN, pinInfo]);
-  const updatePIN = useCallback(async pin => {
-    if (!pin) {
-      localStorage.removeItem(PIN_KEY);
-      setPinInfo(null);
-      setEncryptionKey(null);
-      setUnlocked(true);
-      setUnlockGeneration(g => g + 1);
-      return {
-        success: true,
-        message: "PIN removed."
-      };
-    }
-    if (pin.length !== 4) {
-      return {
-        success: false,
-        error: "PIN must be exactly 4 digits"
-      };
-    }
-    try {
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const {
-        key,
-        bits
-      } = await deriveKeyMaterial(pin, salt.buffer, BASELINE_ITERATIONS);
-      const info = {
-        salt: toBase64(salt.buffer),
-        verifier: toBase64(bits),
-        iterations: BASELINE_ITERATIONS
-      };
-      localStorage.setItem(PIN_KEY, JSON.stringify(info));
-      setPinInfo(info);
-      setEncryptionKey(key);
-      setUnlocked(true);
-      setUnlockGeneration(g => g + 1);
-      storeDeviceCredential(pin);
-      return {
-        success: true,
-        message: hasPIN ? "PIN updated." : "PIN set."
-      };
-    } catch (e) {
-      console.error("Failed to set PIN", e);
-      return {
-        success: false,
-        error: "Could not secure PIN. Please try again."
-      };
-    }
-  }, [hasPIN]);
-  return {
-    hasPIN,
-    pinInfo,
-    unlocked,
-    tryUnlock,
-    updatePIN,
-    encryptionKey,
-    unlockGeneration
-  };
-}
 function App() {
   const {
     theme,
@@ -1244,24 +1015,11 @@ function App() {
     updatePreferences
   } = usePreferences();
   const {
-    hasPIN,
-    unlocked,
-    tryUnlock,
-    updatePIN,
-    encryptionKey,
-    unlockGeneration
-  } = usePIN();
-  const {
     data,
     setData,
     setDay,
     ready
-  } = useData({
-    hasPIN,
-    unlocked,
-    encryptionKey,
-    unlockGeneration
-  });
+  } = useData();
   const [date, setDate] = useState(todayISO());
   const metricOptions = useMemo(() => {
     const combined = [...BASE_METRIC_OPTIONS, ...buildCustomMetricOptions(preferences.customMetrics)];
@@ -1612,14 +1370,6 @@ function App() {
       autoCloseMs: 0
     });
   }, [notify, performReset]);
-  if (!unlocked) return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(NotificationCenter, {
-    notifications: notifications,
-    onDismiss: dismissNotification,
-    onAction: handleNotificationAction
-  }), /*#__PURE__*/React.createElement(LockScreen, {
-    tryUnlock: tryUnlock,
-    notify: notify
-  }));
   return /*#__PURE__*/React.createElement("div", {
     className: "app-shell"
   }, /*#__PURE__*/React.createElement(NotificationCenter, {
@@ -1657,11 +1407,7 @@ function App() {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
-  }, theme === "dark" ? "☀️ Light" : "🌙 Dark"), /*#__PURE__*/React.createElement(PinMenu, {
-    hasPIN: hasPIN,
-    updatePIN: updatePIN,
-    notify: notify
-  }))))), /*#__PURE__*/React.createElement("main", {
+  }, theme === "dark" ? "☀️ Light" : "🌙 Dark"))))), /*#__PURE__*/React.createElement("main", {
     className: "relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8"
   }, /*#__PURE__*/React.createElement("section", {
     className: "glass-card welcome-card"
@@ -3778,165 +3524,6 @@ function CustomMetricManager({
   }, "Add")), /*#__PURE__*/React.createElement("p", {
     className: "text-[11px] text-zinc-500"
   }, "You can add ", remaining, " more.")) : null);
-}
-function PinMenu({
-  hasPIN,
-  updatePIN,
-  notify
-}) {
-  const [open, setOpen] = useState(false);
-  const [val, setVal] = useState("");
-  const [working, setWorking] = useState(false);
-  return /*#__PURE__*/React.createElement("div", {
-    className: "relative"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn",
-    onClick: () => setOpen(o => !o)
-  }, hasPIN ? "🔒 PIN" : "🔓 Set PIN"), open && /*#__PURE__*/React.createElement("div", {
-    className: "absolute right-0 z-40 mt-3 w-72 rounded-2xl border border-white/60 bg-white/80 p-4 text-left shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/10"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "mb-3 text-sm text-zinc-600 dark:text-zinc-300"
-  }, "Optional 4-digit app lock. When enabled, your journal + scripture entries are stored encrypted on this device. If supported, we\u2019ll also save the PIN to your browser\u2019s credential manager for biometric unlocks."), /*#__PURE__*/React.createElement("input", {
-    value: val,
-    onChange: e => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)),
-    placeholder: "1234",
-    className: "mb-3 w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-lg tracking-[0.35em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn",
-    disabled: working,
-    onClick: async () => {
-      if (val.length !== 4) {
-        notify?.({
-          type: "error",
-          message: "Enter 4 digits"
-        });
-        return;
-      }
-      setWorking(true);
-      const result = await updatePIN(val);
-      setWorking(false);
-      if (!result?.success) {
-        if (result?.error) notify?.({
-          type: "error",
-          message: result.error
-        });
-        return;
-      }
-      if (result?.message) notify?.({
-        type: "success",
-        message: result.message
-      });
-      setOpen(false);
-      setVal("");
-    }
-  }, hasPIN ? "Update" : "Set"), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
-    disabled: working || !hasPIN,
-    onClick: async () => {
-      setWorking(true);
-      const result = await updatePIN(null);
-      setWorking(false);
-      if (!result?.success) {
-        if (result?.error) notify?.({
-          type: "error",
-          message: result.error
-        });
-        return;
-      }
-      if (result?.message) notify?.({
-        type: "success",
-        message: result.message
-      });
-      setVal("");
-      setOpen(false);
-    }
-  }, "Remove"))));
-}
-function LockScreen({
-  tryUnlock,
-  notify
-}) {
-  const [val, setVal] = useState("");
-  const [working, setWorking] = useState(false);
-  const submit = async (pinValue = val) => {
-    if (working) return;
-    setWorking(true);
-    const result = await tryUnlock(pinValue);
-    setWorking(false);
-    if (!result?.success) {
-      if (result?.error) notify?.({
-        type: "error",
-        message: result.error
-      });
-      setVal("");
-    }
-  };
-  const useDeviceCredential = async () => {
-    try {
-      if (!navigator.credentials) {
-        notify?.({
-          type: "error",
-          message: "Device credential unlock not supported in this browser."
-        });
-        return;
-      }
-      const credential = await navigator.credentials.get({
-        password: true,
-        mediation: "optional"
-      });
-      if (!credential || credential.id !== DEVICE_CREDENTIAL_ID || !credential.password) {
-        notify?.({
-          type: "error",
-          message: "No saved device credential was found. Set a PIN first to store one."
-        });
-        return;
-      }
-      submit(credential.password);
-    } catch (e) {
-      notify?.({
-        type: "error",
-        message: `Could not use saved credential: ${e.message}`
-      });
-    }
-  };
-  return /*#__PURE__*/React.createElement("div", {
-    className: "app-shell"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "relative z-10 grid min-h-screen place-items-center px-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "glass-card w-full max-w-sm text-center"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
-  }, "\uD83D\uDD12"), /*#__PURE__*/React.createElement("h2", {
-    className: "mb-2 text-lg font-semibold"
-  }, "Enter PIN"), /*#__PURE__*/React.createElement("p", {
-    className: "mb-4 text-xs text-zinc-500 dark:text-zinc-400"
-  }, "Your journal is encrypted when a PIN is set. Unlock to continue."), /*#__PURE__*/React.createElement("input", {
-    value: val,
-    onChange: e => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)),
-    onKeyDown: e => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submit();
-      }
-    },
-    className: "w-full rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-center text-2xl tracking-[0.5em] text-zinc-900 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "mt-4 grid gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn w-full justify-center",
-    onClick: submit,
-    disabled: working
-  }, working ? "Checking…" : "Unlock"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "btn w-full justify-center",
-    onClick: useDeviceCredential,
-    disabled: working
-  }, "Use saved device credential")), /*#__PURE__*/React.createElement("p", {
-    className: "mt-3 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400"
-  }, "Tip: You can remove the PIN later from the header menu. Device credentials rely on your browser\u2019s password manager and may prompt for biometric confirmation."))));
 }
 function buildMetricSeries(data, metricKey, metricOptions = BASE_METRIC_OPTIONS) {
   const metric = metricOptions.find(option => option.value === metricKey);
