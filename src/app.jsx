@@ -2135,12 +2135,12 @@ function App() {
                 <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-100">
                   Regula
                 </h1>
-                <p className="text-xs text-emerald-600/80 sm:text-sm dark:text-emerald-300/80">
+                <p className="hidden text-xs text-emerald-600/80 sm:block sm:text-sm dark:text-emerald-300/80">
                   Gentle rhythms for prayer, stillness, and compassion.
                 </p>
               </div>
               <div className="ml-auto flex flex-col gap-2 text-sm text-zinc-500 dark:text-zinc-400 sm:items-center sm:justify-end">
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex flex-nowrap items-center justify-end gap-2 sm:flex-wrap">
                   <input
                     ref={backupFileInputRef}
                     type="file"
