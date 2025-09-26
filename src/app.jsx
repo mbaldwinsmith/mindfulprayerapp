@@ -2153,30 +2153,35 @@ function App() {
                     onClick={exportBackupJSON}
                     type="button"
                     title="Download backup (JSON)"
+                    aria-label="Export backup (JSON)"
                   >
                     <i className="fa-solid fa-download" aria-hidden="true" />
-                    <span>Export</span>
+                    <span className="hidden sm:inline sm:ml-2">Export</span>
                   </button>
                   <button
                     className="btn btn-action"
                     onClick={triggerBackupImport}
                     type="button"
                     title="Upload backup (JSON)"
+                    aria-label="Import backup (JSON)"
                   >
                     <i className="fa-solid fa-upload" aria-hidden="true" />
-                    <span>Restore</span>
+                    <span className="hidden sm:inline sm:ml-2">Import</span>
                   </button>
                   <button
                     className="btn btn-action"
                     type="button"
                     onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                     title="Toggle theme"
+                    aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
                   >
                     <i
                       className={`fa-solid ${theme === "dark" ? "fa-sun" : "fa-moon"}`}
                       aria-hidden="true"
                     />
-                    <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                    <span className="hidden sm:inline sm:ml-2">
+                      {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2767,7 +2772,7 @@ function App() {
               description="Fine-tune reminders, safety, and tomorrow’s focus."
             />
         <div className="grid gap-6 md:grid-cols-2">
-          <Card title="Backup / Restore">
+          <Card title="Backup / Import">
             <BackupControls
               onExportJSON={exportBackupJSON}
               onExportCSV={exportBackupCSV}

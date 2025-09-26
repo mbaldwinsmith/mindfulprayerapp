@@ -44,7 +44,7 @@ When editing source files:
 
 ## Data privacy
 
-All practice data lives **entirely in the browser** using `localStorage`. Use the in-app **Export JSON/CSV** actions to create manual backups or transfer data to another device.
+All practice data lives **entirely in the browser** using `localStorage`. Use the in-app **Export (JSON/CSV)** and **Import** actions to create manual backups or transfer data to another device.
 
 ## Deployment notes
 
