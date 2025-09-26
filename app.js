@@ -239,7 +239,7 @@ function maybeWrapDriveInitError(error) {
     friendly.details = details;
     return friendly;
   };
-  if (Number.isFinite(code) && code === 502) {
+  if (lowerMessage.includes("api discovery response missing required fields") || Number.isFinite(code) && code === 502) {
     const wildcardSuggestion = typeof window !== "undefined" && window.location ? `${window.location.origin}/*` : "your site";
     return buildWrappedError(`Google returned HTTP 502 while loading the Drive discovery document. This almost always means the API key's HTTP referrer restrictions don't cover ${currentLocation} or the change hasn't fully propagated. Update the restriction to include this URL (for example, ${wildcardSuggestion}) or temporarily remove it, then try again.`, "drive_discovery_referrer_mismatch");
   }
