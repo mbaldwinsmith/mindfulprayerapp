@@ -1712,7 +1712,7 @@ function App() {
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
   }, theme === "dark" ? "☀️ Light" : "🌙 Dark")))))), /*#__PURE__*/React.createElement("main", {
-    className: "relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8"
+    className: "relative z-10 mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 pb-12 pt-8"
   }, /*#__PURE__*/React.createElement("section", {
     className: "glass-card welcome-card"
   }, /*#__PURE__*/React.createElement("div", {
