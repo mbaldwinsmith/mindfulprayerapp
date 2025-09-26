@@ -7,7 +7,7 @@ A zero-backend Progressive Web App (PWA) for cultivating prayer, mindfulness, an
 - **Guided daily check-ins** for morning, midday, and evening rhythms including consecration, stillness, examen, rosary decades, and more.
 - **Progress metrics** with quick totals for breath meditation minutes, Jesus Prayer counts, victories over temptations, and other customisable stats.
 - **Weekly anchors** to remember Mass, confession, fasting, and accountability commitments.
-- **Secure-by-default storage** that never leaves the device—perfect for private journaling and sensitive reflections.
+- **Secure-by-default storage** that stays on-device by default, with optional Google Drive sync for seamless multi-device use.
 - **Offline-first experience** powered by a service worker so the app works even without a connection.
 
 ## Quick start (GitHub Pages)
@@ -44,7 +44,30 @@ When editing source files:
 
 ## Data privacy
 
-All practice data lives **entirely in the browser** using `localStorage`. Use the in-app **Export JSON/CSV** actions to create manual backups or transfer data to another device.
+All practice data lives **entirely in the browser** using `localStorage` unless you connect Google Drive. Drive sync (if enabled) stores a single JSON file in your account’s hidden `appDataFolder`, which is only accessible to this app and not visible in your main Drive.
+
+Use the in-app **Export JSON/CSV** actions to create manual backups or transfer data to another device.
+
+## Enable Google Drive sync
+
+1. Create a project in the [Google Cloud Console](https://console.cloud.google.com/) and enable the **Google Drive API**.
+2. Under **APIs & Services → Credentials**, create:
+   - An **OAuth 2.0 Client ID** (type **Web application**) with your deployed origin (e.g. `https://yourdomain.com`) and `http://localhost` for local testing.
+   - An **API key** restricted to the Drive API (recommended but optional).
+3. Before `app.js` loads, expose the credentials on `window` in `index.html`:
+
+   ```html
+   <script>
+     window.GOOGLE_DRIVE_CLIENT_ID = "your-client-id.apps.googleusercontent.com";
+     window.GOOGLE_DRIVE_API_KEY = "your-api-key"; // optional but recommended
+     // Optional: override the stored file name
+     // window.GOOGLE_DRIVE_FILE_NAME = "custom-file-name.json";
+   </script>
+   ```
+
+4. Reload the app and click **Connect Drive** in the header. After signing in, the app will load any previous snapshot and automatically sync changes using the minimal `drive.appdata` scope.
+
+> The sync controls will remain hidden until a client ID is provided. Disconnecting Drive reverts the app to local-only storage.
 
 ## Deployment notes
 

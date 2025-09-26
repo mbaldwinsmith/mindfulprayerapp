@@ -111,6 +111,144 @@ const DEFAULT_PREFERENCES = {
   tomorrowPlan: "",
 };
 
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const DRIVE_DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+const DRIVE_FILE_NAME = "regula-sync.json";
+const DRIVE_MIME_TYPE = "application/json";
+const DRIVE_SYNC_DEBOUNCE_MS = 2000;
+
+function stableStringify(value) {
+  const seen = new WeakSet();
+  const walk = (input) => {
+    if (input === null || typeof input !== "object") {
+      return JSON.stringify(input);
+    }
+    if (seen.has(input)) {
+      return "null";
+    }
+    seen.add(input);
+    if (Array.isArray(input)) {
+      return `[${input.map((item) => walk(item)).join(",")}]`;
+    }
+    const entries = Object.keys(input)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${walk(input[key])}`);
+    return `{${entries.join(",")}}`;
+  };
+  try {
+    return walk(value);
+  } catch (error) {
+    console.warn("Failed to stableStringify", error);
+    return JSON.stringify(value);
+  }
+}
+
+function resolveDriveConfig() {
+  if (typeof window === "undefined") return null;
+  const clientId =
+    window.GOOGLE_DRIVE_CLIENT_ID || window.GOOGLE_CLIENT_ID || window.__GOOGLE_CLIENT_ID__ || "";
+  if (!clientId) return null;
+  const apiKey = window.GOOGLE_DRIVE_API_KEY || window.GOOGLE_API_KEY || window.__GOOGLE_API_KEY__ || "";
+  const fileName = window.GOOGLE_DRIVE_FILE_NAME || DRIVE_FILE_NAME;
+  return { clientId, apiKey, fileName };
+}
+
+function loadGoogleApiScript() {
+  if (typeof window === "undefined") return Promise.reject(new Error("No window context"));
+  if (window.__googleApiScriptPromise) return window.__googleApiScriptPromise;
+  window.__googleApiScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-google-api]");
+    if (existing) {
+      if (existing.getAttribute("data-loaded") === "true") {
+        resolve(window.gapi);
+        return;
+      }
+      existing.addEventListener("load", () => resolve(window.gapi));
+      existing.addEventListener("error", () => reject(new Error("Failed to load Google API script")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://apis.google.com/js/api.js";
+    script.async = true;
+    script.defer = true;
+    script.setAttribute("data-google-api", "true");
+    script.addEventListener("load", () => {
+      script.setAttribute("data-loaded", "true");
+      resolve(window.gapi);
+    });
+    script.addEventListener("error", () => reject(new Error("Failed to load Google API script")));
+    document.head.appendChild(script);
+  });
+  return window.__googleApiScriptPromise;
+}
+
+async function initGoogleClient(config) {
+  const gapi = await loadGoogleApiScript();
+  if (!gapi) throw new Error("Google API unavailable");
+  await new Promise((resolve, reject) => {
+    gapi.load("client:auth2", async () => {
+      try {
+        await gapi.client.init({
+          apiKey: config.apiKey,
+          clientId: config.clientId,
+          scope: DRIVE_SCOPE,
+          discoveryDocs: DRIVE_DISCOVERY_DOCS,
+        });
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+  return gapi;
+}
+
+function normalizeDriveSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return { version: 1, data: null, preferences: null, theme: null };
+  }
+  const version = Number.isFinite(snapshot.version) ? Number(snapshot.version) : 1;
+  const theme = snapshot.theme === "dark" ? "dark" : snapshot.theme === "light" ? "light" : null;
+  let preferences = null;
+  if (snapshot.preferences && typeof snapshot.preferences === "object") {
+    const prefSource = snapshot.preferences;
+    preferences = {
+      ...DEFAULT_PREFERENCES,
+      ...prefSource,
+      reminders: {
+        ...DEFAULT_PREFERENCES.reminders,
+        ...(prefSource.reminders || {}),
+      },
+      customMetrics: Array.isArray(prefSource.customMetrics) ? [...prefSource.customMetrics] : [],
+    };
+  }
+  let data = null;
+  if (snapshot.data && typeof snapshot.data === "object") {
+    data = { ...snapshot.data };
+  }
+  return { version, data, preferences, theme };
+}
+
+function formatRelativeTimeLabel(dateInput) {
+  if (!dateInput) return "";
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return "just now";
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 45) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} mo${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(months / 12);
+  return `${years} yr${years === 1 ? "" : "s"} ago`;
+}
+
 const AFFIRMATION_MESSAGES = [
   "Well done — you returned to stillness today.",
   "Remember, even one breath of prayer is beloved by God.",
@@ -1497,9 +1635,353 @@ function useData() {
   return { data, setData, setDay, ready };
 }
 
+function useDriveSync({
+  data,
+  setData,
+  preferences,
+  setPreferences,
+  theme,
+  setTheme,
+  ready,
+  notify,
+}) {
+  const config = useMemo(() => resolveDriveConfig(), []);
+  const [driveStateRaw, setDriveStateRaw] = useState(() => ({
+    status: config ? "idle" : "disabled",
+    signedIn: false,
+    syncing: false,
+    lastSync: null,
+    error: null,
+  }));
+  const driveState = driveStateRaw;
+  const isMountedRef = useRef(true);
+  const gapiRef = useRef(null);
+  const authRef = useRef(null);
+  const fileIdRef = useRef(null);
+  const pendingInitialFetchRef = useRef(false);
+  const pendingSyncTimeoutRef = useRef(null);
+  const lastSyncedHashRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (pendingSyncTimeoutRef.current) {
+        window.clearTimeout(pendingSyncTimeoutRef.current);
+        pendingSyncTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const setDriveState = useCallback(
+    (updater) => {
+      if (!isMountedRef.current) return;
+      setDriveStateRaw((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const ensureFileId = useCallback(async () => {
+    if (!config) throw new Error("Google Drive sync is not configured");
+    if (fileIdRef.current) return fileIdRef.current;
+    const gapi = gapiRef.current;
+    if (!gapi) throw new Error("Google API not ready");
+    const fileName = config.fileName || DRIVE_FILE_NAME;
+    const escaped = fileName.replace(/'/g, "\\'");
+    const listResponse = await gapi.client.drive.files.list({
+      spaces: "appDataFolder",
+      fields: "files(id,name,modifiedTime)",
+      pageSize: 1,
+      q: `name='${escaped}' and trashed = false`,
+    });
+    const files = (listResponse.result && listResponse.result.files) || [];
+    if (files.length > 0 && files[0]?.id) {
+      fileIdRef.current = files[0].id;
+      return fileIdRef.current;
+    }
+    const createResponse = await gapi.client.drive.files.create({
+      fields: "id",
+      resource: {
+        name: fileName,
+        parents: ["appDataFolder"],
+        mimeType: DRIVE_MIME_TYPE,
+      },
+      media: {
+        mimeType: DRIVE_MIME_TYPE,
+        body: JSON.stringify({ version: 1 }),
+      },
+    });
+    const newId = createResponse.result?.id;
+    if (!newId) throw new Error("Failed to create Drive file");
+    fileIdRef.current = newId;
+    return newId;
+  }, [config]);
+
+  const downloadSnapshot = useCallback(async () => {
+    const gapi = gapiRef.current;
+    if (!gapi) throw new Error("Google API not ready");
+    const fileId = await ensureFileId();
+    const response = await gapi.client.drive.files.get({ fileId, alt: "media" });
+    const body = typeof response.body === "string" ? response.body : response.result ? JSON.stringify(response.result) : "";
+    if (!body) return null;
+    try {
+      return JSON.parse(body);
+    } catch (error) {
+      console.warn("Failed to parse Drive snapshot", error);
+      return null;
+    }
+  }, [ensureFileId]);
+
+  const uploadSnapshot = useCallback(
+    async (payload) => {
+      const gapi = gapiRef.current;
+      if (!gapi) throw new Error("Google API not ready");
+      const fileId = await ensureFileId();
+      await gapi.client.request({
+        path: `/upload/drive/v3/files/${encodeURIComponent(fileId)}`,
+        method: "PATCH",
+        params: { uploadType: "media" },
+        headers: { "Content-Type": DRIVE_MIME_TYPE },
+        body: JSON.stringify(payload),
+      });
+    },
+    [ensureFileId],
+  );
+
+  const applySnapshot = useCallback(
+    (snapshot, { silent } = {}) => {
+      const normalized = normalizeDriveSnapshot(snapshot);
+      const themeToApply = normalized.theme ?? theme;
+      const preferencesToApply = normalized.preferences ?? preferences;
+      const dataToApply = normalized.data ?? data;
+      if (normalized.theme) {
+        setTheme(normalized.theme);
+      }
+      if (normalized.preferences) {
+        setPreferences(() => preferencesToApply);
+      }
+      if (normalized.data) {
+        setData(dataToApply);
+      }
+      lastSyncedHashRef.current = stableStringify({
+        version: 1,
+        theme: themeToApply,
+        preferences: preferencesToApply,
+        data: dataToApply,
+      });
+      if (!silent && normalized.data) {
+        notify?.({ type: "success", message: "Loaded data from Google Drive." });
+      }
+    },
+    [data, notify, preferences, setData, setPreferences, setTheme, theme],
+  );
+
+  const fetchAndApply = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!ready) return null;
+      setDriveState((prev) => ({ ...prev, syncing: true, error: null }));
+      try {
+        const snapshot = await downloadSnapshot();
+        if (snapshot && (snapshot.data || snapshot.preferences || snapshot.theme)) {
+          applySnapshot(snapshot, { silent });
+        } else if (!silent) {
+          notify?.({
+            type: "info",
+            message: "No Google Drive backup found yet. Your local data will be uploaded on the next sync.",
+            autoCloseMs: 5000,
+          });
+        }
+        const timestamp = new Date().toISOString();
+        setDriveState((prev) => ({ ...prev, syncing: false, lastSync: timestamp }));
+        return snapshot;
+      } catch (error) {
+        console.error("Drive download failed", error);
+        setDriveState((prev) => ({ ...prev, syncing: false, error }));
+        if (!silent) {
+          notify?.({ type: "error", message: `Drive download failed: ${error?.message || error}` });
+        }
+        return null;
+      }
+    },
+    [applySnapshot, downloadSnapshot, notify, ready, setDriveState],
+  );
+
+  const computePayload = useCallback(() => {
+    const payload = {
+      version: 1,
+      theme,
+      preferences,
+      data,
+    };
+    const hash = stableStringify(payload);
+    return { payload, hash };
+  }, [data, preferences, theme]);
+
+  const syncNow = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!config) {
+        if (!silent) notify?.({ type: "warning", message: "Google Drive sync is not configured." });
+        return { ok: false };
+      }
+      if (!authRef.current || !authRef.current.isSignedIn.get()) {
+        if (!silent) notify?.({ type: "warning", message: "Connect Google Drive to sync data." });
+        return { ok: false };
+      }
+      if (!ready) {
+        if (!silent) notify?.({ type: "info", message: "Data is still loading. Please try again shortly." });
+        return { ok: false };
+      }
+      const { payload, hash } = computePayload();
+      if (hash === lastSyncedHashRef.current) {
+        if (!silent) {
+          notify?.({ type: "info", message: "Everything is already in sync." });
+        }
+        return { ok: true, skipped: true };
+      }
+      setDriveState((prev) => ({ ...prev, syncing: true, error: null }));
+      try {
+        await uploadSnapshot(payload);
+        const timestamp = new Date().toISOString();
+        lastSyncedHashRef.current = hash;
+        setDriveState((prev) => ({ ...prev, syncing: false, lastSync: timestamp }));
+        if (!silent) {
+          notify?.({ type: "success", message: "Synced to Google Drive." });
+        }
+        return { ok: true };
+      } catch (error) {
+        console.error("Drive sync failed", error);
+        setDriveState((prev) => ({ ...prev, syncing: false, error }));
+        if (!silent) {
+          notify?.({ type: "error", message: `Drive sync failed: ${error?.message || error}` });
+        }
+        return { ok: false, error };
+      }
+    },
+    [authRef, computePayload, config, notify, ready, setDriveState, uploadSnapshot],
+  );
+
+  const handleSignInChange = useCallback(
+    (isSignedIn) => {
+      setDriveState((prev) => ({ ...prev, signedIn: isSignedIn }));
+      if (!isSignedIn) {
+        fileIdRef.current = null;
+        lastSyncedHashRef.current = null;
+        pendingInitialFetchRef.current = false;
+        return;
+      }
+      if (!ready) {
+        pendingInitialFetchRef.current = true;
+      } else {
+        pendingInitialFetchRef.current = false;
+        void fetchAndApply({ silent: true });
+      }
+    },
+    [fetchAndApply, ready, setDriveState],
+  );
+
+  useEffect(() => {
+    if (!config || typeof window === "undefined") return;
+    let cancelled = false;
+    setDriveState((prev) => ({ ...prev, status: "loading", error: null }));
+    (async () => {
+      try {
+        const gapi = await initGoogleClient(config);
+        if (cancelled || !isMountedRef.current) return;
+        gapiRef.current = gapi;
+        const authInstance = gapi.auth2.getAuthInstance();
+        authRef.current = authInstance;
+        const signedIn = authInstance.isSignedIn.get();
+        setDriveState((prev) => ({ ...prev, status: "ready", signedIn }));
+        authInstance.isSignedIn.listen((isSignedIn) => {
+          if (!isMountedRef.current) return;
+          handleSignInChange(isSignedIn);
+        });
+        if (signedIn) {
+          if (ready) {
+            await fetchAndApply({ silent: true });
+          } else {
+            pendingInitialFetchRef.current = true;
+          }
+        }
+      } catch (error) {
+        if (cancelled || !isMountedRef.current) return;
+        console.error("Google Drive init failed", error);
+        setDriveState((prev) => ({ ...prev, status: "error", error }));
+        notify?.({ type: "error", message: `Google Drive init failed: ${error?.message || error}` });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [config, fetchAndApply, handleSignInChange, notify, ready, setDriveState]);
+
+  useEffect(() => {
+    if (!driveState.signedIn || driveState.status !== "ready" || !ready) return;
+    const { hash } = computePayload();
+    if (hash === lastSyncedHashRef.current) return;
+    if (pendingSyncTimeoutRef.current) {
+      window.clearTimeout(pendingSyncTimeoutRef.current);
+    }
+    pendingSyncTimeoutRef.current = window.setTimeout(() => {
+      void syncNow({ silent: true });
+    }, DRIVE_SYNC_DEBOUNCE_MS);
+    return () => {
+      if (pendingSyncTimeoutRef.current) {
+        window.clearTimeout(pendingSyncTimeoutRef.current);
+        pendingSyncTimeoutRef.current = null;
+      }
+    };
+  }, [computePayload, driveState.signedIn, driveState.status, ready, syncNow]);
+
+  useEffect(() => {
+    if (driveState.signedIn && ready && pendingInitialFetchRef.current) {
+      pendingInitialFetchRef.current = false;
+      void fetchAndApply({ silent: true });
+    }
+  }, [driveState.signedIn, fetchAndApply, ready]);
+
+  const signIn = useCallback(async () => {
+    if (!authRef.current) {
+      notify?.({ type: "warning", message: "Google Drive isn’t ready yet." });
+      return false;
+    }
+    try {
+      await authRef.current.signIn();
+      return true;
+    } catch (error) {
+      if (error?.error !== "popup_closed_by_user") {
+        notify?.({ type: "error", message: `Google sign-in failed: ${error?.message || error}` });
+      }
+      return false;
+    }
+  }, [notify]);
+
+  const signOut = useCallback(async () => {
+    if (!authRef.current) return false;
+    try {
+      await authRef.current.signOut();
+      notify?.({ type: "info", message: "Disconnected from Google Drive." });
+      return true;
+    } catch (error) {
+      notify?.({ type: "error", message: `Sign-out failed: ${error?.message || error}` });
+      return false;
+    }
+  }, [notify]);
+
+  return {
+    ...driveState,
+    available: Boolean(config),
+    signIn,
+    signOut,
+    syncNow,
+  };
+}
+
 function App() {
   const { theme, setTheme } = useTheme();
-  const { preferences, updatePreferences } = usePreferences();
+  const { preferences, updatePreferences, setPreferences } = usePreferences();
   const { data, setData, setDay, ready } = useData();
   const [date, setDate] = useState(todayISO());
   const metricOptions = useMemo(() => {
@@ -1535,6 +2017,17 @@ function App() {
     }
     return id;
   }, []);
+
+  const driveSync = useDriveSync({
+    data,
+    setData,
+    preferences,
+    setPreferences,
+    theme,
+    setTheme,
+    ready,
+    notify,
+  });
 
   const handleNotificationAction = useCallback(
     async (id, action) => {
@@ -1858,10 +2351,52 @@ function App() {
                   Gentle rhythms for prayer, stillness, and compassion.
                 </p>
               </div>
-              <div className="ml-auto flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
-                  {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
-                </button>
+              <div className="ml-auto flex flex-col gap-2 text-sm text-zinc-500 dark:text-zinc-400 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {driveSync.available ? (
+                    <>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={driveSync.signedIn ? driveSync.signOut : driveSync.signIn}
+                        disabled={driveSync.status === "loading" || driveSync.syncing}
+                      >
+                        {driveSync.status === "loading"
+                          ? "Connecting…"
+                          : driveSync.signedIn
+                            ? "Disconnect Drive"
+                            : "Connect Drive"}
+                      </button>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => driveSync.syncNow({ silent: false })}
+                        disabled={!driveSync.signedIn || driveSync.status !== "ready" || driveSync.syncing}
+                      >
+                        {driveSync.syncing ? "Syncing…" : "Sync now"}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="hidden text-xs sm:inline">Drive sync not configured</span>
+                  )}
+                  <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
+                    {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+                  </button>
+                </div>
+                {driveSync.signedIn && (
+                  <div className="flex justify-end text-xs text-emerald-700/80 dark:text-emerald-300/80">
+                    {driveSync.syncing
+                      ? "Syncing with Google Drive…"
+                      : driveSync.lastSync
+                        ? `Synced ${formatRelativeTimeLabel(driveSync.lastSync)}`
+                        : "Not synced yet"}
+                  </div>
+                )}
+                {driveSync.status === "error" && (
+                  <div className="flex justify-end text-xs text-rose-600 dark:text-rose-300">
+                    Drive connection error — try reconnecting.
+                  </div>
+                )}
               </div>
             </div>
           </div>
