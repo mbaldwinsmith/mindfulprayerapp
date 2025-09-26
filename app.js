@@ -150,6 +150,38 @@ const DRIVE_FILE_NAME = "regula-sync.json";
 const DRIVE_MIME_TYPE = "application/json";
 const DRIVE_SYNC_DEBOUNCE_MS = 2000;
 const DRIVE_DISABLED_MESSAGE = "Google Drive sync isn't available on this Regula site. This static installation only uses Google OAuth without the Drive API, so your data will stay on this device.";
+function cleanupGoogleOAuthRedirectArtifacts() {
+  if (typeof window === "undefined") return;
+  try {
+    const currentUrl = new URL(window.location.href);
+    const params = currentUrl.searchParams;
+    let searchChanged = false;
+    if (params.has("g_state")) {
+      params.delete("g_state");
+      searchChanged = true;
+    }
+    const rawHash = currentUrl.hash?.replace(/^#/, "") || "";
+    const hashParams = new URLSearchParams(rawHash);
+    const oauthKeys = ["access_token", "token_type", "expires_in", "scope", "state", "authuser", "prompt"];
+    const hasOauthHash = oauthKeys.some(key => hashParams.has(key));
+    let hashChanged = false;
+    if (hasOauthHash) {
+      oauthKeys.forEach(key => {
+        if (hashParams.has(key)) {
+          hashParams.delete(key);
+          hashChanged = true;
+        }
+      });
+    }
+    if (!searchChanged && !hashChanged) return;
+    const nextSearch = params.toString();
+    const nextHash = hashParams.toString();
+    const nextUrl = `${currentUrl.pathname}${nextSearch ? `?${nextSearch}` : ""}${nextHash ? `#${nextHash}` : ""}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  } catch (error) {
+    console.warn("Failed to clean up Google OAuth redirect artifacts", error);
+  }
+}
 function extractGoogleApiErrorDetails(error) {
   if (!error) return null;
   const resultError = error?.result?.error;
@@ -221,16 +253,46 @@ function stableStringify(value) {
     return JSON.stringify(value);
   }
 }
+function isCrossOriginIsolationEnabled() {
+  if (typeof window === "undefined") return false;
+  if (typeof window.crossOriginIsolated === "boolean") {
+    return window.crossOriginIsolated;
+  }
+  try {
+    const hasSharedArrayBuffer = typeof window.SharedArrayBuffer === "function";
+    const hasPostMessageTransfer = typeof window.postMessage === "function" && !!window.postMessage.length;
+    return hasSharedArrayBuffer && hasPostMessageTransfer;
+  } catch (error) {
+    console.warn("Failed to detect cross-origin isolation", error);
+    return false;
+  }
+}
 function resolveDriveConfig() {
   if (typeof window === "undefined") return null;
   const clientId = window.GOOGLE_DRIVE_CLIENT_ID || window.GOOGLE_CLIENT_ID || window.__GOOGLE_CLIENT_ID__ || "";
   if (!clientId) return null;
   const apiKey = window.GOOGLE_DRIVE_API_KEY || window.GOOGLE_API_KEY || window.__GOOGLE_API_KEY__ || "";
   const fileName = window.GOOGLE_DRIVE_FILE_NAME || DRIVE_FILE_NAME;
+  const configuredUxMode = (window.GOOGLE_DRIVE_UX_MODE || window.GOOGLE_OAUTH_UX_MODE || "").toLowerCase();
+  let uxMode = configuredUxMode;
+  if (!uxMode || !["popup", "redirect"].includes(uxMode)) {
+    uxMode = isCrossOriginIsolationEnabled() ? "redirect" : "popup";
+  }
+  const defaultRedirectUri = (() => {
+    if (typeof window === "undefined") return "";
+    const {
+      origin,
+      pathname
+    } = window.location;
+    return `${origin}${pathname}`;
+  })();
+  const redirectUri = window.GOOGLE_DRIVE_REDIRECT_URI || window.GOOGLE_OAUTH_REDIRECT_URI || defaultRedirectUri;
   return {
     clientId,
     apiKey,
-    fileName
+    fileName,
+    uxMode,
+    redirectUri
   };
 }
 function loadGoogleApiScript() {
@@ -1262,6 +1324,12 @@ function useDriveSync({
       }
     };
   }, []);
+  useEffect(() => {
+    if (!config) return;
+    if (config.uxMode === "redirect") {
+      cleanupGoogleOAuthRedirectArtifacts();
+    }
+  }, [config]);
   const setDriveState = useCallback(updater => {
     if (!isMountedRef.current) return;
     setDriveStateRaw(prev => {
@@ -1561,16 +1629,20 @@ function useDriveSync({
       resolve(tokenResponse.access_token);
     };
     try {
-      tokenClient.requestAccessToken({
+      const requestOptions = {
         prompt
-      });
+      };
+      if (config?.uxMode !== "redirect") {
+        requestOptions.use_fedcm_for_prompt = true;
+      }
+      tokenClient.requestAccessToken(requestOptions);
     } catch (error) {
       if (!silent && error?.message) {
         console.error("Google Identity request failed", error);
       }
       reject(error);
     }
-  }), []);
+  }), [config?.uxMode]);
   const syncNow = useCallback(async ({
     silent = false
   } = {}) => {
@@ -1725,11 +1797,18 @@ function useDriveSync({
         if (!googleIdentity) {
           throw new Error("Google Identity Services unavailable");
         }
-        tokenClientRef.current = googleIdentity.initTokenClient({
+        const tokenClientOptions = {
           client_id: config.clientId,
           scope: DRIVE_SCOPE,
           callback: () => {}
-        });
+        };
+        if (config.uxMode) {
+          tokenClientOptions.ux_mode = config.uxMode;
+        }
+        if (config.uxMode === "redirect" && config.redirectUri) {
+          tokenClientOptions.redirect_uri = config.redirectUri;
+        }
+        tokenClientRef.current = googleIdentity.initTokenClient(tokenClientOptions);
         setDriveState(prev => ({
           ...prev,
           status: "ready",
