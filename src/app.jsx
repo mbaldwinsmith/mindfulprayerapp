@@ -13,6 +13,7 @@ const STORE_KEY = "zc_tracker_v1";
 const THEME_KEY = "zc_theme";
 const PREFS_KEY = "zc_preferences_v1";
 const REMINDER_STATE_KEY = "zc_reminder_state_v1";
+const DRIVE_CONFIG_STORAGE_KEY = "zc_drive_config_v1";
 
 const randomId = () => Math.random().toString(36).slice(2, 10);
 
@@ -253,14 +254,62 @@ function isCrossOriginIsolationEnabled() {
   }
 }
 
-function resolveDriveConfig() {
+function normalizeDriveConfigInput(input) {
+  if (!input || typeof input !== "object") return null;
+  const normalized = {
+    clientId: typeof input.clientId === "string" ? input.clientId.trim() : "",
+    apiKey: typeof input.apiKey === "string" ? input.apiKey.trim() : "",
+    fileName: typeof input.fileName === "string" ? input.fileName.trim() : "",
+    uxMode: typeof input.uxMode === "string" ? input.uxMode.trim().toLowerCase() : "",
+    redirectUri: typeof input.redirectUri === "string" ? input.redirectUri.trim() : "",
+  };
+  if (normalized.uxMode && !["popup", "redirect"].includes(normalized.uxMode)) {
+    normalized.uxMode = "";
+  }
+  const hasAny = Object.values(normalized).some(Boolean);
+  return hasAny ? normalized : null;
+}
+
+function loadStoredDriveConfig() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(DRIVE_CONFIG_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return normalizeDriveConfigInput(parsed);
+  } catch (error) {
+    console.warn("Failed to load stored Drive config", error);
+    return null;
+  }
+}
+
+function persistStoredDriveConfig(config) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    if (!config) {
+      window.localStorage.removeItem(DRIVE_CONFIG_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(DRIVE_CONFIG_STORAGE_KEY, JSON.stringify(config));
+    }
+  } catch (error) {
+    console.warn("Failed to persist Drive config", error);
+  }
+}
+
+function resolveDriveConfig(overrides) {
   if (typeof window === "undefined") return null;
-  const clientId =
+  const normalizedOverrides = normalizeDriveConfigInput(overrides) || null;
+  const globalClientId =
     window.GOOGLE_DRIVE_CLIENT_ID || window.GOOGLE_CLIENT_ID || window.__GOOGLE_CLIENT_ID__ || "";
+  const clientId = (normalizedOverrides?.clientId || globalClientId || "").trim();
   if (!clientId) return null;
-  const apiKey = window.GOOGLE_DRIVE_API_KEY || window.GOOGLE_API_KEY || window.__GOOGLE_API_KEY__ || "";
-  const fileName = window.GOOGLE_DRIVE_FILE_NAME || DRIVE_FILE_NAME;
-  const configuredUxMode = (window.GOOGLE_DRIVE_UX_MODE || window.GOOGLE_OAUTH_UX_MODE || "").toLowerCase();
+  const globalApiKey = window.GOOGLE_DRIVE_API_KEY || window.GOOGLE_API_KEY || window.__GOOGLE_API_KEY__ || "";
+  const apiKey = (normalizedOverrides?.apiKey || globalApiKey || "").trim();
+  if (!apiKey) return null;
+  const rawFileName = normalizedOverrides?.fileName || window.GOOGLE_DRIVE_FILE_NAME || "";
+  const fileName = rawFileName ? rawFileName : DRIVE_FILE_NAME;
+  const configuredUxMode =
+    (normalizedOverrides?.uxMode || window.GOOGLE_DRIVE_UX_MODE || window.GOOGLE_OAUTH_UX_MODE || "").toLowerCase();
   let uxMode = configuredUxMode;
   if (!uxMode || !["popup", "redirect"].includes(uxMode)) {
     uxMode = isCrossOriginIsolationEnabled() ? "redirect" : "popup";
@@ -270,7 +319,11 @@ function resolveDriveConfig() {
     const { origin, pathname } = window.location;
     return `${origin}${pathname}`;
   })();
-  const redirectUri = window.GOOGLE_DRIVE_REDIRECT_URI || window.GOOGLE_OAUTH_REDIRECT_URI || defaultRedirectUri;
+  const redirectUri =
+    normalizedOverrides?.redirectUri ||
+    window.GOOGLE_DRIVE_REDIRECT_URI ||
+    window.GOOGLE_OAUTH_REDIRECT_URI ||
+    defaultRedirectUri;
   return { clientId, apiKey, fileName, uxMode, redirectUri };
 }
 
@@ -1783,6 +1836,36 @@ function useData() {
   return { data, setData, setDay, ready };
 }
 
+function useDriveConfig() {
+  const [storedConfig, setStoredConfig] = useState(() => loadStoredDriveConfig());
+
+  const saveDriveConfig = useCallback(
+    (updates) => {
+      const merged = { ...(storedConfig || {}), ...(updates || {}) };
+      const normalized = normalizeDriveConfigInput(merged);
+      if (normalized) {
+        setStoredConfig(normalized);
+        persistStoredDriveConfig(normalized);
+      } else {
+        setStoredConfig(null);
+        persistStoredDriveConfig(null);
+      }
+      return normalized;
+    },
+    [storedConfig],
+  );
+
+  const clearDriveConfig = useCallback(() => {
+    setStoredConfig(null);
+    persistStoredDriveConfig(null);
+  }, []);
+
+  const config = useMemo(() => resolveDriveConfig(storedConfig), [storedConfig]);
+  const hasStoredCredentials = Boolean(storedConfig && Object.values(storedConfig).some(Boolean));
+
+  return { config, storedConfig, saveDriveConfig, clearDriveConfig, hasStoredCredentials };
+}
+
 function useDriveSync({
   data,
   setData,
@@ -1792,8 +1875,8 @@ function useDriveSync({
   setTheme,
   ready,
   notify,
+  config,
 }) {
-  const config = useMemo(() => resolveDriveConfig(), []);
   const [driveStateRaw, setDriveStateRaw] = useState(() => ({
     status: config ? "idle" : "disabled",
     signedIn: false,
@@ -1858,6 +1941,27 @@ function useDriveSync({
       pendingSyncTimeoutRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    if (config) {
+      setDriveState((prev) => {
+        if (prev.status === "disabled" && prev.disabledReason === "not_configured") {
+          return { ...prev, status: "idle", disabledReason: null, error: null };
+        }
+        return prev;
+      });
+      return;
+    }
+    clearDriveSessionRefs();
+    setDriveState((prev) => ({
+      ...prev,
+      signedIn: false,
+      syncing: false,
+      status: "disabled",
+      error: null,
+      disabledReason: "not_configured",
+    }));
+  }, [clearDriveSessionRefs, config, setDriveState]);
 
   const handleDriveDisabled = useCallback(
     ({ silent = false } = {}) => {
@@ -2218,6 +2322,7 @@ function useDriveSync({
 
   useEffect(() => {
     if (!config || typeof window === "undefined") return;
+    clearDriveSessionRefs();
     let cancelled = false;
     setDriveState((prev) => ({ ...prev, status: "loading", error: null }));
     (async () => {
@@ -2264,7 +2369,17 @@ function useDriveSync({
     return () => {
       cancelled = true;
     };
-  }, [config, handleSignedIn, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState]);
+  }, [
+    clearDriveSessionRefs,
+    config,
+    handleSignedIn,
+    handleSignedOut,
+    isTokenAuthError,
+    notify,
+    ready,
+    requestAccessToken,
+    setDriveState,
+  ]);
 
   useEffect(() => {
     if (!driveState.signedIn || driveState.status !== "ready" || !ready) return;
@@ -2358,6 +2473,7 @@ function App() {
   const { theme, setTheme } = useTheme();
   const { preferences, updatePreferences, setPreferences } = usePreferences();
   const { data, setData, setDay, ready } = useData();
+  const driveConfigState = useDriveConfig();
   const [date, setDate] = useState(todayISO());
   const metricOptions = useMemo(() => {
     const combined = [...BASE_METRIC_OPTIONS, ...buildCustomMetricOptions(preferences.customMetrics)];
@@ -2402,6 +2518,7 @@ function App() {
     setTheme,
     ready,
     notify,
+    config: driveConfigState.config,
   });
 
   const handleNotificationAction = useCallback(
@@ -2755,7 +2872,7 @@ function App() {
                     <div className="max-w-[18rem] text-right text-xs leading-snug text-emerald-700/80 sm:max-w-xs sm:text-left sm:text-sm dark:text-emerald-300/80">
                       {driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled"
                         ? DRIVE_DISABLED_MESSAGE
-                        : "Drive sync not configured"}
+                        : "Drive sync not configured — add your Google API key in Settings."}
                     </div>
                   )}
                   <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
@@ -3363,18 +3480,25 @@ function App() {
               icon="🧭"
               description="Fine-tune reminders, safety, and tomorrow’s focus."
             />
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card title="Backup / Restore">
-                <BackupControls
-                  data={data}
-                  setData={setData}
-                  preferences={preferences}
-                  updatePreferences={updatePreferences}
-                  notify={notify}
-                />
-              </Card>
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <Card title="Google Drive sync setup">
+            <DriveSyncSetup
+              driveSync={driveSync}
+              driveConfigState={driveConfigState}
+              notify={notify}
+            />
+          </Card>
+          <Card title="Backup / Restore">
+            <BackupControls
+              data={data}
+              setData={setData}
+              preferences={preferences}
+              updatePreferences={updatePreferences}
+              notify={notify}
+            />
+          </Card>
 
-              <Card title="Settings &amp; Safety">
+          <Card title="Settings &amp; Safety">
                 <div className="grid gap-2 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span id="show-guided-label">Show guided prompts</span>
@@ -4811,6 +4935,136 @@ function MiniMonth({ dots, onPick, current }) {
       </div>
       <div className="mt-1 text-[10px] text-zinc-500">Filled = any practice done that day</div>
     </div>
+  );
+}
+
+function DriveSyncSetup({ driveSync, driveConfigState, notify }) {
+  const { storedConfig, saveDriveConfig, clearDriveConfig, hasStoredCredentials } = driveConfigState;
+  const defaultClientId =
+    typeof window !== "undefined"
+      ? window.GOOGLE_DRIVE_CLIENT_ID || window.GOOGLE_CLIENT_ID || window.__GOOGLE_CLIENT_ID__ || ""
+      : "";
+  const [formValues, setFormValues] = useState(() => ({
+    clientId: storedConfig?.clientId || defaultClientId,
+    apiKey: storedConfig?.apiKey || "",
+  }));
+
+  useEffect(() => {
+    setFormValues({
+      clientId: storedConfig?.clientId || defaultClientId,
+      apiKey: storedConfig?.apiKey || "",
+    });
+  }, [defaultClientId, storedConfig]);
+
+  const handleChange = useCallback((field, value) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSubmit = useCallback(
+    (event) => {
+      event.preventDefault();
+      const apiKey = formValues.apiKey.trim();
+      const clientId = formValues.clientId.trim();
+      if (!apiKey) {
+        notify?.({ type: "warning", message: "Enter a Google API key before saving." });
+        return;
+      }
+      const saved = saveDriveConfig({ apiKey, clientId });
+      if (saved) {
+        notify?.({ type: "success", message: "Google Drive API key saved to this browser." });
+      } else {
+        notify?.({ type: "error", message: "Failed to save Google Drive settings." });
+      }
+    },
+    [formValues.apiKey, formValues.clientId, notify, saveDriveConfig],
+  );
+
+  const handleClear = useCallback(() => {
+    clearDriveConfig();
+    setFormValues({ clientId: defaultClientId, apiKey: "" });
+    notify?.({
+      type: "info",
+      message: "Cleared stored Google Drive credentials for this browser.",
+    });
+  }, [clearDriveConfig, defaultClientId, notify]);
+
+  const statusMessage = useMemo(() => {
+    if (!driveSync.available || driveSync.status === "disabled") {
+      if (driveSync.disabledReason === "drive_api_disabled") {
+        return DRIVE_DISABLED_MESSAGE;
+      }
+      return "Enter your Google API key and connect your Google account to enable syncing.";
+    }
+    if (driveSync.status === "loading") return "Initializing Google Drive…";
+    if (driveSync.status === "error")
+      return "Drive connection error — double-check your credentials and try again.";
+    if (driveSync.status === "ready") {
+      if (driveSync.signedIn) {
+        return driveSync.syncing ? "Syncing with Google Drive…" : "Connected to Google Drive.";
+      }
+      return "Drive is ready. Connect your Google account from the header controls.";
+    }
+    return "Drive sync idle.";
+  }, [driveSync.available, driveSync.disabledReason, driveSync.signedIn, driveSync.status, driveSync.syncing]);
+
+  const lastSyncLabel = useMemo(() => {
+    if (!driveSync.lastSync) return "";
+    return `Last synced ${formatRelativeTimeLabel(driveSync.lastSync)}`;
+  }, [driveSync.lastSync]);
+
+  return (
+    <form className="grid gap-3 text-sm" onSubmit={handleSubmit}>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Your Google API key is stored only in this browser’s local storage so the static site can call the Drive API without
+        exposing it publicly.
+      </p>
+      <label className="grid gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">
+          Google OAuth client ID
+        </span>
+        <input
+          type="text"
+          value={formValues.clientId}
+          onChange={(event) => handleChange("clientId", event.target.value)}
+          placeholder="your-client-id.apps.googleusercontent.com"
+          autoComplete="off"
+          className="rounded-md border border-zinc-200 bg-white/60 px-3 py-2 text-sm text-zinc-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100"
+        />
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          Optional: override the default client ID bundled with this site.
+        </span>
+      </label>
+      <label className="grid gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">
+          Google API key
+        </span>
+        <input
+          type="text"
+          value={formValues.apiKey}
+          onChange={(event) => handleChange("apiKey", event.target.value)}
+          placeholder="AIza…"
+          autoComplete="off"
+          className="rounded-md border border-zinc-200 bg-white/60 px-3 py-2 text-sm text-zinc-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100"
+        />
+        <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          Required. Generate this in Google Cloud Console and keep it private.
+        </span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className="btn">
+          Save credentials
+        </button>
+        <button type="button" className="btn" onClick={handleClear} disabled={!hasStoredCredentials}>
+          Clear stored key
+        </button>
+      </div>
+      <div className="rounded-lg border border-dashed border-zinc-200 bg-white/60 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
+        <div>{statusMessage}</div>
+        {lastSyncLabel ? (
+          <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">{lastSyncLabel}</div>
+        ) : null}
+      </div>
+    </form>
   );
 }
 
