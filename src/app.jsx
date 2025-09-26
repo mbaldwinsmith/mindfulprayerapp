@@ -215,12 +215,10 @@ async function initGoogleClient(config) {
   const [gapi] = await Promise.all([loadGoogleApiScript(), loadGoogleIdentityScript()]);
   if (!gapi) throw new Error("Google API unavailable");
   await new Promise((resolve, reject) => {
-    gapi.load("client:auth2", async () => {
+    gapi.load("client", async () => {
       try {
         await gapi.client.init({
           apiKey: config.apiKey,
-          clientId: config.clientId,
-          scope: DRIVE_SCOPE,
           discoveryDocs: DRIVE_DISCOVERY_DOCS,
         });
         resolve();
