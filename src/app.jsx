@@ -2140,7 +2140,7 @@ function App() {
                 </p>
               </div>
               <div className="ml-auto flex flex-col gap-2 text-sm text-zinc-500 dark:text-zinc-400 sm:items-center sm:justify-end">
-                <div className="flex flex-nowrap items-center justify-end gap-2 sm:flex-wrap">
+                <div className="flex items-center justify-end gap-1.5 sm:gap-2">
                   <input
                     ref={backupFileInputRef}
                     type="file"
