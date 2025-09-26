@@ -1670,11 +1670,57 @@ function useData() {
   return { data, setData, setDay, ready };
 }
 
+// Centralized helpers for updating the selected day's nested sections.
+function useDaySections(date, setDay) {
+  const updateDay = useCallback(
+    (updater) => {
+      setDay(date, (existing) => {
+        const base = { ...existing };
+        if (typeof updater === "function") {
+          return updater(base);
+        }
+        return { ...base, ...(updater || {}) };
+      });
+    },
+    [date, setDay],
+  );
+
+  const updateSection = useCallback(
+    (section, patch) =>
+      updateDay((existing) => {
+        const current = { ...(existing[section] ?? {}) };
+        const applied = typeof patch === "function" ? patch({ ...current }) : patch;
+        return {
+          ...existing,
+          [section]: { ...current, ...(applied || {}) },
+        };
+      }),
+    [updateDay],
+  );
+
+  return useMemo(
+    () => ({
+      updateDay,
+      updateSection,
+      updateMorning: (patch) => updateSection("morning", patch),
+      updateMidday: (patch) => updateSection("midday", patch),
+      updateEvening: (patch) => updateSection("evening", patch),
+      updateTemptations: (patch) => updateSection("temptations", patch),
+      updateWeekly: (patch) => updateSection("weekly", patch),
+    }),
+    [updateDay, updateSection],
+  );
+}
+
 function App() {
   const { theme, setTheme } = useTheme();
   const { preferences, updatePreferences, setPreferences } = usePreferences();
   const { data, setData, setDay, ready } = useData();
   const [date, setDate] = useState(todayISO());
+  const { updateDay, updateMorning, updateMidday, updateEvening, updateTemptations } = useDaySections(
+    date,
+    setDay,
+  );
   const metricOptions = useMemo(() => {
     const combined = [...BASE_METRIC_OPTIONS, ...buildCustomMetricOptions(preferences.customMetrics)];
     return combined.length ? combined : [...BASE_METRIC_OPTIONS];
@@ -2018,12 +2064,8 @@ function App() {
   const handleMeditationFinish = useCallback(
     (mins) => {
       if (!mins) return;
-      setDay(date, (existing) => ({
-        ...existing,
-        morning: {
-          ...existing.morning,
-          breathMinutes: (existing.morning?.breathMinutes || 0) + mins,
-        },
+      updateMorning((existing) => ({
+        breathMinutes: (existing.breathMinutes || 0) + mins,
       }));
       const template = pickRandomEntry(TIMER_AFFIRMATIONS);
       const message = typeof template === "function" ? template(mins) : template;
@@ -2031,7 +2073,7 @@ function App() {
       showAffirmation(message ?? fallback, { suppressAutoNext: true });
       void playChime();
     },
-    [date, setDay, showAffirmation],
+    [updateMorning, showAffirmation],
   );
 
   const cycleSpotlight = useCallback(() => {
@@ -2249,7 +2291,7 @@ function App() {
                     </a>
                   }
                   checked={d.morning.consecration}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, consecration: v } }))}
+                  onChange={(value) => updateMorning({ consecration: value })}
                 />
                 <ToggleRow
                   label={
@@ -2263,7 +2305,7 @@ function App() {
                     </a>
                   }
                   checked={d.morning.angelus}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, angelus: v } }))}
+                  onChange={(value) => updateMorning({ angelus: value })}
                 />
                 <ToggleRow
                   label={
@@ -2277,7 +2319,7 @@ function App() {
                     </a>
                   }
                   checked={d.morning.benedictus}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, benedictus: v } }))}
+                  onChange={(value) => updateMorning({ benedictus: value })}
                 />
                 <TimerRow
                   label={
@@ -2298,7 +2340,7 @@ function App() {
                     </span>
                   }
                   minutes={d.morning.breathMinutes}
-                  onChange={(m) => setDay(date, (x) => ({ ...x, morning: { ...x.morning, breathMinutes: clamp(m, 0, 600) } }))}
+                  onChange={(minutes) => updateMorning({ breathMinutes: clamp(minutes, 0, 600) })}
                 />
                 <CounterRow
                   label={
@@ -2319,10 +2361,7 @@ function App() {
                     </span>
                   }
                   value={d.morning.jesusPrayerCount}
-                  onChange={(n) => setDay(date, (x) => ({
-                    ...x,
-                    morning: { ...x.morning, jesusPrayerCount: clamp(n, 0, 100000) },
-                  }))}
+                  onChange={(count) => updateMorning({ jesusPrayerCount: clamp(count, 0, 100000) })}
                 />
               </Card>
 
@@ -2339,7 +2378,7 @@ function App() {
                     </a>
                   }
                   checked={d.midday.angelus}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, angelus: v } }))}
+                  onChange={(value) => updateMidday({ angelus: value })}
                 />
                 <ToggleRow
                   label={
@@ -2360,7 +2399,7 @@ function App() {
                     </span>
                   }
                   checked={d.midday.stillness}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, stillness: v } }))}
+                  onChange={(value) => updateMidday({ stillness: value })}
                 />
                 <ToggleRow
                   label={
@@ -2381,13 +2420,12 @@ function App() {
                     </span>
                   }
                   checked={d.midday.bodyBlessing}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, midday: { ...x.midday, bodyBlessing: v } }))}
+                  onChange={(value) => updateMidday({ bodyBlessing: value })}
                 />
-                <TemptationBox date={date} d={d} setDay={setDay} />
+                <TemptationBox temptations={d.temptations} onUpdate={updateTemptations} />
                 <CustomMetricInputs
-                  date={date}
                   day={d}
-                  setDay={setDay}
+                  onUpdateDay={updateDay}
                   customMetrics={preferences.customMetrics}
                 />
               </Card>
@@ -2405,7 +2443,7 @@ function App() {
                     </a>
                   }
                   checked={d.evening.angelus}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, angelus: v } }))}
+                  onChange={(value) => updateEvening({ angelus: value })}
                 />
                 <ToggleRow
                   label={
@@ -2419,7 +2457,7 @@ function App() {
                     </a>
                   }
                   checked={d.evening.magnificat}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, magnificat: v } }))}
+                  onChange={(value) => updateEvening({ magnificat: value })}
                 />
                 <ToggleRow
                   label={
@@ -2433,7 +2471,7 @@ function App() {
                     </a>
                   }
                   checked={d.evening.examen}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, examen: v } }))}
+                  onChange={(value) => updateEvening({ examen: value })}
                 />
                 {preferences.showGuidedPrompts && <GuidedPrompt title="Gentle examen" prompts={EXAMEN_PROMPTS} />}
                 <StepperRow
@@ -2441,7 +2479,7 @@ function App() {
                   value={d.evening.rosaryDecades}
                   min={0}
                   max={5}
-                  onChange={(n) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, rosaryDecades: n } }))}
+                  onChange={(n) => updateEvening({ rosaryDecades: clamp(n, 0, 5) })}
                 />
                 <RosaryMysteryNote mystery={rosaryMystery} />
                 <ToggleRow
@@ -2456,7 +2494,7 @@ function App() {
                     </a>
                   }
                   checked={d.evening.actOfContrition}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, actOfContrition: v } }))}
+                  onChange={(value) => updateEvening({ actOfContrition: value })}
                 />
                 <ToggleRow
                   label={
@@ -2477,7 +2515,7 @@ function App() {
                     </span>
                   }
                   checked={d.evening.gratitudePrayer}
-                  onChange={(v) => setDay(date, (x) => ({ ...x, evening: { ...x.evening, gratitudePrayer: v } }))}
+                  onChange={(value) => updateEvening({ gratitudePrayer: value })}
                 />
               </Card>
             </div>
@@ -2493,7 +2531,7 @@ function App() {
               <Card title="Scripture Seed">
             <textarea
               value={d.scripture}
-              onChange={(e) => setDay(date, (x) => ({ ...x, scripture: e.target.value }))}
+              onChange={(event) => updateDay({ scripture: event.target.value })}
               className="journal-textarea scripture-textarea h-28 w-full"
               placeholder="E.g., ‘Blessed are the pure in heart…’ (Matt 5:8)"
             />
@@ -2512,14 +2550,11 @@ function App() {
 
               <Card title="Journal">
             {preferences.showGuidedPrompts && <GuidedPrompt title="Journal spark" prompts={JOURNAL_PROMPTS} />}
-            <MoodSelector value={d.mood} onChange={(mood) => setDay(date, (x) => ({ ...x, mood }))} />
-            <TagSelector
-              tags={d.contextTags}
-              onChange={(tags) => setDay(date, (x) => ({ ...x, contextTags: tags }))}
-            />
+            <MoodSelector value={d.mood} onChange={(mood) => updateDay({ mood })} />
+            <TagSelector tags={d.contextTags} onChange={(tags) => updateDay({ contextTags: tags })} />
             <textarea
               value={d.notes}
-              onChange={(e) => setDay(date, (x) => ({ ...x, notes: e.target.value }))}
+              onChange={(event) => updateDay({ notes: event.target.value })}
               className="journal-textarea h-28 w-full"
               placeholder="Graces, struggles, consolations, inspirations…"
             />
@@ -3601,8 +3636,8 @@ function PrayerSessionModal({ open, onClose, onFinish }) {
   );
 }
 
-function TemptationBox({ date, d, setDay }) {
-  const t = d.temptations;
+function TemptationBox({ temptations, onUpdate }) {
+  const t = temptations || { urgesNoted: 0, victories: 0, lapses: 0 };
   return (
     <div className="grid gap-2">
       <h3 className="text-sm font-medium">Temptation Tracker</h3>
@@ -3610,32 +3645,17 @@ function TemptationBox({ date, d, setDay }) {
         <SmallCounter
           label="Urges Noted"
           value={t.urgesNoted}
-          onChange={(n) =>
-            setDay(date, (x) => ({
-              ...x,
-              temptations: { ...x.temptations, urgesNoted: Math.max(0, n) },
-            }))
-          }
+          onChange={(value) => onUpdate?.({ urgesNoted: Math.max(0, value) })}
         />
         <SmallCounter
           label="Victories"
           value={t.victories}
-          onChange={(n) =>
-            setDay(date, (x) => ({
-              ...x,
-              temptations: { ...x.temptations, victories: Math.max(0, n) },
-            }))
-          }
+          onChange={(value) => onUpdate?.({ victories: Math.max(0, value) })}
         />
         <SmallCounter
           label="Lapses"
           value={t.lapses}
-          onChange={(n) =>
-            setDay(date, (x) => ({
-              ...x,
-              temptations: { ...x.temptations, lapses: Math.max(0, n) },
-            }))
-          }
+          onChange={(value) => onUpdate?.({ lapses: Math.max(0, value) })}
         />
       </div>
       <p className="text-xs text-zinc-500">
@@ -3645,7 +3665,7 @@ function TemptationBox({ date, d, setDay }) {
   );
 }
 
-function CustomMetricInputs({ date, day, setDay, customMetrics }) {
+function CustomMetricInputs({ day, onUpdateDay, customMetrics }) {
   if (!customMetrics?.length) return null;
   const current = day.customMetrics || {};
   return (
@@ -3657,7 +3677,7 @@ function CustomMetricInputs({ date, day, setDay, customMetrics }) {
           metric={metric}
           value={current[metric.id] ?? 0}
           onChange={(value) =>
-            setDay(date, (existing) => ({
+            onUpdateDay((existing) => ({
               ...existing,
               customMetrics: {
                 ...(existing.customMetrics || {}),
