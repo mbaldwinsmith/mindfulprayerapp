@@ -1171,6 +1171,46 @@ function useData() {
     ready
   };
 }
+function useDaySections(date, setDay) {
+  const updateDay = useCallback(updater => {
+    setDay(date, existing => {
+      const base = {
+        ...existing
+      };
+      if (typeof updater === "function") {
+        return updater(base);
+      }
+      return {
+        ...base,
+        ...(updater || {})
+      };
+    });
+  }, [date, setDay]);
+  const updateSection = useCallback((section, patch) => updateDay(existing => {
+    const current = {
+      ...(existing[section] ?? {})
+    };
+    const applied = typeof patch === "function" ? patch({
+      ...current
+    }) : patch;
+    return {
+      ...existing,
+      [section]: {
+        ...current,
+        ...(applied || {})
+      }
+    };
+  }), [updateDay]);
+  return useMemo(() => ({
+    updateDay,
+    updateSection,
+    updateMorning: patch => updateSection("morning", patch),
+    updateMidday: patch => updateSection("midday", patch),
+    updateEvening: patch => updateSection("evening", patch),
+    updateTemptations: patch => updateSection("temptations", patch),
+    updateWeekly: patch => updateSection("weekly", patch)
+  }), [updateDay, updateSection]);
+}
 function App() {
   const {
     theme,
@@ -1188,6 +1228,13 @@ function App() {
     ready
   } = useData();
   const [date, setDate] = useState(todayISO());
+  const {
+    updateDay,
+    updateMorning,
+    updateMidday,
+    updateEvening,
+    updateTemptations
+  } = useDaySections(date, setDay);
   const metricOptions = useMemo(() => {
     const combined = [...BASE_METRIC_OPTIONS, ...buildCustomMetricOptions(preferences.customMetrics)];
     return combined.length ? combined : [...BASE_METRIC_OPTIONS];
@@ -1552,12 +1599,8 @@ function App() {
   }, []);
   const handleMeditationFinish = useCallback(mins => {
     if (!mins) return;
-    setDay(date, existing => ({
-      ...existing,
-      morning: {
-        ...existing.morning,
-        breathMinutes: (existing.morning?.breathMinutes || 0) + mins
-      }
+    updateMorning(existing => ({
+      breathMinutes: (existing.breathMinutes || 0) + mins
     }));
     const template = pickRandomEntry(TIMER_AFFIRMATIONS);
     const message = typeof template === "function" ? template(mins) : template;
@@ -1566,7 +1609,7 @@ function App() {
       suppressAutoNext: true
     });
     void playChime();
-  }, [date, setDay, showAffirmation]);
+  }, [updateMorning, showAffirmation]);
   const cycleSpotlight = useCallback(() => {
     updatePreferences(prev => ({
       spotlightIndex: (prev.spotlightIndex + 1) % PRACTICE_SPOTLIGHTS.length
@@ -1775,13 +1818,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Consecration to the Virgin Mary"),
     checked: d.morning.consecration,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      morning: {
-        ...x.morning,
-        consecration: v
-      }
-    }))
+    onChange: value => updateMorning({
+      consecration: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: ANGELUS_PRAYER_URL,
@@ -1790,13 +1829,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Angelus Prayer"),
     checked: d.morning.angelus,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      morning: {
-        ...x.morning,
-        angelus: v
-      }
-    }))
+    onChange: value => updateMorning({
+      angelus: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: BENEDICTUS_PRAYER_URL,
@@ -1805,13 +1840,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Recite the Benedictus"),
     checked: d.morning.benedictus,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      morning: {
-        ...x.morning,
-        benedictus: v
-      }
-    }))
+    onChange: value => updateMorning({
+      benedictus: value
+    })
   }), /*#__PURE__*/React.createElement(TimerRow, {
     label: /*#__PURE__*/React.createElement("span", {
       className: "inline-flex items-center gap-2"
@@ -1824,13 +1855,9 @@ function App() {
       "aria-hidden": "true"
     }, "?")),
     minutes: d.morning.breathMinutes,
-    onChange: m => setDay(date, x => ({
-      ...x,
-      morning: {
-        ...x.morning,
-        breathMinutes: clamp(m, 0, 600)
-      }
-    }))
+    onChange: minutes => updateMorning({
+      breathMinutes: clamp(minutes, 0, 600)
+    })
   }), /*#__PURE__*/React.createElement(CounterRow, {
     label: /*#__PURE__*/React.createElement("span", {
       className: "inline-flex items-center gap-2"
@@ -1843,13 +1870,9 @@ function App() {
       "aria-hidden": "true"
     }, "?")),
     value: d.morning.jesusPrayerCount,
-    onChange: n => setDay(date, x => ({
-      ...x,
-      morning: {
-        ...x.morning,
-        jesusPrayerCount: clamp(n, 0, 100000)
-      }
-    }))
+    onChange: count => updateMorning({
+      jesusPrayerCount: clamp(count, 0, 100000)
+    })
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Midday \u2014 Re-centring on Christ",
     accent: "zenith"
@@ -1861,13 +1884,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Angelus Prayer"),
     checked: d.midday.angelus,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      midday: {
-        ...x.midday,
-        angelus: v
-      }
-    }))
+    onChange: value => updateMidday({
+      angelus: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("span", {
       className: "inline-flex items-center gap-2"
@@ -1880,13 +1899,9 @@ function App() {
       "aria-hidden": "true"
     }, "?")),
     checked: d.midday.stillness,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      midday: {
-        ...x.midday,
-        stillness: v
-      }
-    }))
+    onChange: value => updateMidday({
+      stillness: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("span", {
       className: "inline-flex items-center gap-2"
@@ -1899,21 +1914,15 @@ function App() {
       "aria-hidden": "true"
     }, "?")),
     checked: d.midday.bodyBlessing,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      midday: {
-        ...x.midday,
-        bodyBlessing: v
-      }
-    }))
+    onChange: value => updateMidday({
+      bodyBlessing: value
+    })
   }), /*#__PURE__*/React.createElement(TemptationBox, {
-    date: date,
-    d: d,
-    setDay: setDay
+    temptations: d.temptations,
+    onUpdate: updateTemptations
   }), /*#__PURE__*/React.createElement(CustomMetricInputs, {
-    date: date,
     day: d,
-    setDay: setDay,
+    onUpdateDay: updateDay,
     customMetrics: preferences.customMetrics
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Evening \u2014 Resting in Christ",
@@ -1926,13 +1935,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Angelus Prayer"),
     checked: d.evening.angelus,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      evening: {
-        ...x.evening,
-        angelus: v
-      }
-    }))
+    onChange: value => updateEvening({
+      angelus: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: MAGNIFICAT_PRAYER_URL,
@@ -1941,13 +1946,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Recite the Magnificat"),
     checked: d.evening.magnificat,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      evening: {
-        ...x.evening,
-        magnificat: v
-      }
-    }))
+    onChange: value => updateEvening({
+      magnificat: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("a", {
       href: "https://www.ignatianspirituality.com/ignatian-prayer/the-examen/how-can-i-pray/",
@@ -1956,13 +1957,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Examen with Compassion"),
     checked: d.evening.examen,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      evening: {
-        ...x.evening,
-        examen: v
-      }
-    }))
+    onChange: value => updateEvening({
+      examen: value
+    })
   }), preferences.showGuidedPrompts && /*#__PURE__*/React.createElement(GuidedPrompt, {
     title: "Gentle examen",
     prompts: EXAMEN_PROMPTS
@@ -1971,13 +1968,9 @@ function App() {
     value: d.evening.rosaryDecades,
     min: 0,
     max: 5,
-    onChange: n => setDay(date, x => ({
-      ...x,
-      evening: {
-        ...x.evening,
-        rosaryDecades: n
-      }
-    }))
+    onChange: n => updateEvening({
+      rosaryDecades: clamp(n, 0, 5)
+    })
   }), /*#__PURE__*/React.createElement(RosaryMysteryNote, {
     mystery: rosaryMystery
   }), /*#__PURE__*/React.createElement(ToggleRow, {
@@ -1988,13 +1981,9 @@ function App() {
       className: "text-emerald-700 underline decoration-dotted underline-offset-2 transition hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
     }, "Act of Contrition"),
     checked: d.evening.actOfContrition,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      evening: {
-        ...x.evening,
-        actOfContrition: v
-      }
-    }))
+    onChange: value => updateEvening({
+      actOfContrition: value
+    })
   }), /*#__PURE__*/React.createElement(ToggleRow, {
     label: /*#__PURE__*/React.createElement("span", {
       className: "inline-flex items-center gap-2"
@@ -2007,13 +1996,9 @@ function App() {
       "aria-hidden": "true"
     }, "?")),
     checked: d.evening.gratitudePrayer,
-    onChange: v => setDay(date, x => ({
-      ...x,
-      evening: {
-        ...x.evening,
-        gratitudePrayer: v
-      }
-    }))
+    onChange: value => updateEvening({
+      gratitudePrayer: value
+    })
   })))), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-4"
   }, /*#__PURE__*/React.createElement(SectionHeading, {
@@ -2026,10 +2011,9 @@ function App() {
     title: "Scripture Seed"
   }, /*#__PURE__*/React.createElement("textarea", {
     value: d.scripture,
-    onChange: e => setDay(date, x => ({
-      ...x,
-      scripture: e.target.value
-    })),
+    onChange: event => updateDay({
+      scripture: event.target.value
+    }),
     className: "journal-textarea scripture-textarea h-28 w-full",
     placeholder: "E.g., \u2018Blessed are the pure in heart\u2026\u2019 (Matt 5:8)"
   }), /*#__PURE__*/React.createElement(ScriptureSeedSuggestion, {
@@ -2051,22 +2035,19 @@ function App() {
     prompts: JOURNAL_PROMPTS
   }), /*#__PURE__*/React.createElement(MoodSelector, {
     value: d.mood,
-    onChange: mood => setDay(date, x => ({
-      ...x,
+    onChange: mood => updateDay({
       mood
-    }))
+    })
   }), /*#__PURE__*/React.createElement(TagSelector, {
     tags: d.contextTags,
-    onChange: tags => setDay(date, x => ({
-      ...x,
+    onChange: tags => updateDay({
       contextTags: tags
-    }))
+    })
   }), /*#__PURE__*/React.createElement("textarea", {
     value: d.notes,
-    onChange: e => setDay(date, x => ({
-      ...x,
-      notes: e.target.value
-    })),
+    onChange: event => updateDay({
+      notes: event.target.value
+    }),
     className: "journal-textarea h-28 w-full",
     placeholder: "Graces, struggles, consolations, inspirations\u2026"
   })))), /*#__PURE__*/React.createElement("div", {
@@ -3053,11 +3034,14 @@ function PrayerSessionModal({
   }))));
 }
 function TemptationBox({
-  date,
-  d,
-  setDay
+  temptations,
+  onUpdate
 }) {
-  const t = d.temptations;
+  const t = temptations || {
+    urgesNoted: 0,
+    victories: 0,
+    lapses: 0
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2"
   }, /*#__PURE__*/React.createElement("h3", {
@@ -3067,41 +3051,28 @@ function TemptationBox({
   }, /*#__PURE__*/React.createElement(SmallCounter, {
     label: "Urges Noted",
     value: t.urgesNoted,
-    onChange: n => setDay(date, x => ({
-      ...x,
-      temptations: {
-        ...x.temptations,
-        urgesNoted: Math.max(0, n)
-      }
-    }))
+    onChange: value => onUpdate?.({
+      urgesNoted: Math.max(0, value)
+    })
   }), /*#__PURE__*/React.createElement(SmallCounter, {
     label: "Victories",
     value: t.victories,
-    onChange: n => setDay(date, x => ({
-      ...x,
-      temptations: {
-        ...x.temptations,
-        victories: Math.max(0, n)
-      }
-    }))
+    onChange: value => onUpdate?.({
+      victories: Math.max(0, value)
+    })
   }), /*#__PURE__*/React.createElement(SmallCounter, {
     label: "Lapses",
     value: t.lapses,
-    onChange: n => setDay(date, x => ({
-      ...x,
-      temptations: {
-        ...x.temptations,
-        lapses: Math.max(0, n)
-      }
-    }))
+    onChange: value => onUpdate?.({
+      lapses: Math.max(0, value)
+    })
   })), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
   }, "Note urges gently; celebrate victories; bring lapses to Confession with hope."));
 }
 function CustomMetricInputs({
-  date,
   day,
-  setDay,
+  onUpdateDay,
   customMetrics
 }) {
   if (!customMetrics?.length) return null;
@@ -3114,7 +3085,7 @@ function CustomMetricInputs({
     key: metric.id,
     metric: metric,
     value: current[metric.id] ?? 0,
-    onChange: value => setDay(date, existing => ({
+    onChange: value => onUpdateDay(existing => ({
       ...existing,
       customMetrics: {
         ...(existing.customMetrics || {}),
