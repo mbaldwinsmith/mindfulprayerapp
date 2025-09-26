@@ -1194,9 +1194,12 @@
   }
 
   .timer-display-time {
-    display: inline-flex;
+    position: relative;
+    display: inline-grid;
+    grid-auto-flow: column;
     align-items: center;
     justify-content: center;
+    column-gap: 1.15ch;
     width: 100%;
     text-align: center;
     line-height: 1;
@@ -1210,16 +1213,18 @@
     text-shadow: 0 12px 28px rgba(16, 185, 129, 0.45);
   }
 
-  .timer-display-segment {
-    letter-spacing: 0.12em;
-    display: inline-flex;
+  .timer-display-time::before {
+    content: ":";
+    position: absolute;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
   }
 
-  .timer-display-separator {
+  .timer-display-digits {
     display: inline-flex;
-    align-items: center;
     justify-content: center;
-    padding-inline: 0.2em;
+    min-width: 2ch;
+    letter-spacing: 0.12em;
   }
 
   .dark .timer-display {

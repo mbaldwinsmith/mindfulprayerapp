@@ -1906,7 +1906,7 @@ function App() {
     className: "md:h-full",
     contentClassName: "md:h-full"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "md:flex md:h-full md:flex-col md:items-center md:justify-center"
+    className: "md:flex md:h-full md:flex-col md:items-center md:justify-start"
   }, /*#__PURE__*/React.createElement(MeditationTimer, {
     onFinish: handleMeditationFinish
   })))), /*#__PURE__*/React.createElement(Card, {
@@ -2758,6 +2758,9 @@ function MeditationTimer({
   }, [running]);
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
+  const minsLabel = String(mins).padStart(2, "0");
+  const secsLabel = String(secs).padStart(2, "0");
+  const timeLabel = `${minsLabel}:${secsLabel}`;
   const reset = () => setSeconds(0);
   const finish = () => {
     setRunning(false);
@@ -2777,14 +2780,17 @@ function MeditationTimer({
   }, /*#__PURE__*/React.createElement("div", {
     className: "timer-display"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "timer-display-time"
+    className: "timer-display-time",
+    "aria-live": "polite",
+    "aria-label": timeLabel,
+    role: "text"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "timer-display-segment"
-  }, String(mins).padStart(2, "0")), /*#__PURE__*/React.createElement("span", {
-    className: "timer-display-separator"
-  }, ":"), /*#__PURE__*/React.createElement("span", {
-    className: "timer-display-segment"
-  }, String(secs).padStart(2, "0")))), /*#__PURE__*/React.createElement("div", {
+    className: "timer-display-digits",
+    "aria-hidden": "true"
+  }, minsLabel), /*#__PURE__*/React.createElement("span", {
+    className: "timer-display-digits",
+    "aria-hidden": "true"
+  }, secsLabel))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn",

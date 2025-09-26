@@ -2347,7 +2347,7 @@ function App() {
                   className="md:h-full"
                   contentClassName="md:h-full"
                 >
-                  <div className="md:flex md:h-full md:flex-col md:items-center md:justify-center">
+                  <div className="md:flex md:h-full md:flex-col md:items-center md:justify-start">
                     <MeditationTimer onFinish={handleMeditationFinish} />
                   </div>
                 </Card>
@@ -3285,6 +3285,9 @@ function MeditationTimer({ onFinish }) {
 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
+  const minsLabel = String(mins).padStart(2, "0");
+  const secsLabel = String(secs).padStart(2, "0");
+  const timeLabel = `${minsLabel}:${secsLabel}`;
   const reset = () => setSeconds(0);
   const finish = () => {
     setRunning(false);
@@ -3304,10 +3307,13 @@ function MeditationTimer({ onFinish }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="timer-display">
-        <span className="timer-display-time">
-          <span className="timer-display-segment">{String(mins).padStart(2, "0")}</span>
-          <span className="timer-display-separator">:</span>
-          <span className="timer-display-segment">{String(secs).padStart(2, "0")}</span>
+        <span className="timer-display-time" aria-live="polite" aria-label={timeLabel} role="text">
+          <span className="timer-display-digits" aria-hidden="true">
+            {minsLabel}
+          </span>
+          <span className="timer-display-digits" aria-hidden="true">
+            {secsLabel}
+          </span>
         </span>
       </div>
       <div className="flex gap-2">
