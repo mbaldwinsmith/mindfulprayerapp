@@ -13,6 +13,8 @@ const STORE_KEY = "zc_tracker_v1";
 const THEME_KEY = "zc_theme";
 const PREFS_KEY = "zc_preferences_v1";
 const REMINDER_STATE_KEY = "zc_reminder_state_v1";
+const JSON_EXPORT_VERSION = 2;
+const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const randomId = () => Math.random().toString(36).slice(2, 10);
 const blankDay = date => ({
   date,
@@ -669,6 +671,74 @@ const normalizeDay = (input = {}) => ({
   contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
   customMetrics: input.customMetrics ?? {}
 });
+function sanitizeCustomMetrics(metrics) {
+  if (!Array.isArray(metrics)) return [];
+  return metrics.filter(metric => metric && typeof metric.id === "string" && metric.id).map(metric => ({
+    id: metric.id,
+    name: typeof metric.name === "string" ? metric.name : metric.id,
+    unit: typeof metric.unit === "string" ? metric.unit : ""
+  })).slice(0, 12);
+}
+function sanitizeReminder(reminder, fallback) {
+  const base = fallback || {
+    enabled: false,
+    time: "00:00",
+    label: ""
+  };
+  if (!reminder || typeof reminder !== "object") {
+    return {
+      ...base
+    };
+  }
+  return {
+    enabled: Boolean(reminder.enabled),
+    time: typeof reminder.time === "string" ? reminder.time : base.time,
+    label: typeof reminder.label === "string" ? reminder.label : base.label
+  };
+}
+function sanitizeReminders(reminders) {
+  return {
+    morning: sanitizeReminder(reminders?.morning, DEFAULT_REMINDERS.morning),
+    midday: sanitizeReminder(reminders?.midday, DEFAULT_REMINDERS.midday),
+    evening: sanitizeReminder(reminders?.evening, DEFAULT_REMINDERS.evening)
+  };
+}
+function sanitizePreferencesForExport(preferences = {}) {
+  const merged = {
+    ...DEFAULT_PREFERENCES,
+    ...preferences
+  };
+  return {
+    ...merged,
+    onboardingComplete: Boolean(merged.onboardingComplete),
+    showGuidedPrompts: Boolean(merged.showGuidedPrompts),
+    allowNotifications: Boolean(merged.allowNotifications),
+    spotlightIndex: clamp(Math.floor(Number(merged.spotlightIndex) || 0), 0, Math.max(PRACTICE_SPOTLIGHTS.length - 1, 0)),
+    tomorrowPlan: typeof merged.tomorrowPlan === "string" ? merged.tomorrowPlan : "",
+    customMetrics: sanitizeCustomMetrics(merged.customMetrics),
+    reminders: sanitizeReminders(merged.reminders)
+  };
+}
+function sanitizeImportedPreferences(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const sanitized = {};
+  if ("onboardingComplete" in raw) sanitized.onboardingComplete = Boolean(raw.onboardingComplete);
+  if ("showGuidedPrompts" in raw) sanitized.showGuidedPrompts = Boolean(raw.showGuidedPrompts);
+  if ("allowNotifications" in raw) sanitized.allowNotifications = Boolean(raw.allowNotifications);
+  if ("spotlightIndex" in raw) {
+    sanitized.spotlightIndex = clamp(Math.floor(Number(raw.spotlightIndex) || 0), 0, Math.max(PRACTICE_SPOTLIGHTS.length - 1, 0));
+  }
+  if ("tomorrowPlan" in raw) {
+    sanitized.tomorrowPlan = typeof raw.tomorrowPlan === "string" ? raw.tomorrowPlan : "";
+  }
+  if ("customMetrics" in raw) {
+    sanitized.customMetrics = sanitizeCustomMetrics(raw.customMetrics);
+  }
+  if ("reminders" in raw) {
+    sanitized.reminders = sanitizeReminders(raw.reminders);
+  }
+  return Object.keys(sanitized).length ? sanitized : null;
+}
 function dayHasActivity(day) {
   if (!day) return false;
   if (typeof day.scripture === "string" && day.scripture.trim()) return true;
@@ -741,7 +811,8 @@ function truncateText(value, maxLength = 120) {
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
 function exportDataJSON(data) {
-  const blob = new Blob([JSON.stringify(data || {}, null, 2)], {
+  const payload = createBackupPayload(data?.data ?? data ?? {}, data?.preferences ?? DEFAULT_PREFERENCES);
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json"
   });
   const url = URL.createObjectURL(blob);
@@ -751,6 +822,100 @@ function exportDataJSON(data) {
   a.click();
   URL.revokeObjectURL(url);
   return true;
+}
+function createBackupPayload(data = {}, preferences = DEFAULT_PREFERENCES) {
+  const normalizedData = {};
+  if (data && typeof data === "object") {
+    Object.keys(data).forEach(key => {
+      if (!DATE_KEY_REGEX.test(key)) return;
+      const value = data[key];
+      if (!value || typeof value !== "object") return;
+      normalizedData[key] = normalizeDay({
+        ...value,
+        date: key
+      });
+    });
+  }
+  return {
+    version: JSON_EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: normalizedData,
+    preferences: sanitizePreferencesForExport(preferences)
+  };
+}
+function extractImportedDataMap(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.data && typeof raw.data === "object") return raw.data;
+  const candidateKeys = Object.keys(raw).filter(key => DATE_KEY_REGEX.test(key));
+  if (!candidateKeys.length) return null;
+  return candidateKeys.reduce((acc, key) => {
+    acc[key] = raw[key];
+    return acc;
+  }, {});
+}
+function mergeImportedData(currentData, importedData, warnings) {
+  const next = {
+    ...currentData
+  };
+  let importedCount = 0;
+  let overwrittenCount = 0;
+  Object.entries(importedData || {}).forEach(([date, value]) => {
+    if (!DATE_KEY_REGEX.test(date)) {
+      warnings.push(`Skipped invalid date key: ${date}`);
+      return;
+    }
+    if (!value || typeof value !== "object") {
+      warnings.push(`Skipped malformed entry for ${date}.`);
+      return;
+    }
+    const normalized = normalizeDay({
+      ...value,
+      date
+    });
+    if (next[date]) overwrittenCount += 1;
+    next[date] = normalized;
+    importedCount += 1;
+  });
+  return {
+    data: next,
+    importedCount,
+    overwrittenCount
+  };
+}
+function processImportedBackup(raw, currentData) {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("File must contain a JSON object.");
+  }
+  const warnings = [];
+  const importedDataMap = extractImportedDataMap(raw);
+  let mergeResult = {
+    data: currentData,
+    importedCount: 0,
+    overwrittenCount: 0
+  };
+  if (importedDataMap) {
+    mergeResult = mergeImportedData(currentData, importedDataMap, warnings);
+    if (Object.keys(importedDataMap).length && mergeResult.importedCount === 0) {
+      warnings.push("No valid daily entries found in the backup file.");
+    }
+  }
+  const prefPatch = sanitizeImportedPreferences(raw.preferences ?? raw.prefs ?? null);
+  if (!importedDataMap && !prefPatch) {
+    throw new Error("No tracker entries or preferences found in the file.");
+  }
+  if (raw.version && raw.version !== JSON_EXPORT_VERSION) {
+    warnings.push(`Backup version ${raw.version} differs from app export version ${JSON_EXPORT_VERSION}. Data was imported with compatibility safeguards.`);
+  }
+  return {
+    data: mergeResult.data,
+    preferences: prefPatch,
+    stats: {
+      importedCount: mergeResult.importedCount,
+      overwrittenCount: mergeResult.overwrittenCount,
+      version: raw.version ?? null
+    },
+    warnings
+  };
 }
 async function clearAppStorage() {
   if ("serviceWorker" in navigator) {
@@ -3359,6 +3524,7 @@ function MiniMonth({
     className: "mt-1 text-[10px] text-zinc-500"
   }, "Filled = any practice done that day"));
 }
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 function BackupControls({
   data,
   setData,
@@ -3366,11 +3532,9 @@ function BackupControls({
   updatePreferences,
   notify
 }) {
-  const exportJSON = () => {
-    const payload = {
-      data,
-      preferences
-    };
+  const fileInputRef = useRef(null);
+  const exportJSON = useCallback(() => {
+    const payload = createBackupPayload(data, preferences);
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json"
     });
@@ -3380,9 +3544,9 @@ function BackupControls({
     a.download = `zc-tracker-export-${todayISO()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-  const exportCSV = () => {
-    const rows = toCSV(data, preferences.customMetrics);
+  }, [data, preferences]);
+  const exportCSV = useCallback(() => {
+    const rows = toCSV(data, sanitizeCustomMetrics(preferences.customMetrics));
     const blob = new Blob([rows], {
       type: "text/csv;charset=utf-8;"
     });
@@ -3392,33 +3556,84 @@ function BackupControls({
     a.download = `zc-tracker-export-${todayISO()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-  const importJSON = file => {
+  }, [data, preferences.customMetrics]);
+  const importJSON = useCallback(file => {
+    if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      notify?.({
+        type: "error",
+        message: "Import failed: File is larger than 2 MB."
+      });
+      return;
+    }
+    const nameLooksJSON = /\.json$/i.test(file.name || "");
+    const typeIsJSON = !file.type || file.type === "application/json";
+    if (!nameLooksJSON && !typeIsJSON) {
+      notify?.({
+        type: "error",
+        message: "Import failed: Please select a JSON backup file."
+      });
+      return;
+    }
     const reader = new FileReader();
+    reader.onerror = () => {
+      notify?.({
+        type: "error",
+        message: "Import failed: Unable to read file."
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
     reader.onload = () => {
       try {
         const obj = JSON.parse(String(reader.result));
-        if (!obj || typeof obj !== "object") throw new Error("Invalid file");
-        if (obj.data && typeof obj.data === "object") setData(obj.data);else setData(obj);
-        if (obj.preferences && typeof obj.preferences === "object") {
-          updatePreferences(prev => ({
-            ...prev,
-            ...obj.preferences
-          }));
+        const result = processImportedBackup(obj, data);
+        const newEntries = Math.max(result.stats.importedCount - result.stats.overwrittenCount, 0);
+        if (result.stats.importedCount > 0) {
+          setData(result.data);
+        }
+        if (result.preferences) {
+          updatePreferences(result.preferences);
+        }
+        const summary = [];
+        if (newEntries > 0) {
+          summary.push(`${newEntries} new day${newEntries === 1 ? "" : "s"}`);
+        }
+        if (result.stats.overwrittenCount > 0) {
+          summary.push(`${result.stats.overwrittenCount} updated`);
+        }
+        if (result.preferences) {
+          summary.push("preferences synced");
+        }
+        const summaryText = summary.length ? summary.join(", ") : "no changes detected";
+        const warningCount = result.warnings.length;
+        const baseMessage = `Import ${warningCount ? "completed with warnings" : "successful"} (${summaryText}).`;
+        const warningMessage = warningCount ? ` ${result.warnings[0]}` : "";
+        if (warningCount > 1) {
+          console.warn("Import warnings:", result.warnings);
         }
         notify?.({
-          type: "success",
-          message: "Import successful."
+          type: warningCount ? "warning" : "success",
+          message: `${baseMessage}${warningMessage}`
         });
       } catch (e) {
         notify?.({
           type: "error",
           message: `Import failed: ${e.message}`
         });
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     };
     reader.readAsText(file);
-  };
+  }, [data, notify, setData, updatePreferences]);
+  const handleFileChange = useCallback(event => {
+    const file = event.target.files?.[0];
+    if (file) {
+      importJSON(file);
+    } else if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [importJSON]);
   return /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3432,10 +3647,11 @@ function BackupControls({
   }, "Export CSV"), /*#__PURE__*/React.createElement("label", {
     className: "btn cursor-pointer"
   }, "Import JSON", /*#__PURE__*/React.createElement("input", {
+    ref: fileInputRef,
     type: "file",
     accept: "application/json",
     className: "hidden",
-    onChange: e => e.target.files && importJSON(e.target.files[0])
+    onChange: handleFileChange
   }))), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-zinc-500"
   }, "Back up locally. Files stay on your device."));
