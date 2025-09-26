@@ -1332,48 +1332,45 @@ function truncateText(value, maxLength = 120) {
 }
 
 function exportDataJSON(data) {
-  try {
-    const blob = new Blob([JSON.stringify(data || {}, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `prayer-tracker-backup-${todayISO()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    return true;
-  } catch (e) {
-    alert("Export failed: " + e.message);
-    return false;
-  }
+  const blob = new Blob([JSON.stringify(data || {}, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `prayer-tracker-backup-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return true;
 }
 
-async function resetApp() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    const data = raw ? JSON.parse(raw) : {};
-    const wantsBackup = confirm(
-      "Back up your data before reset? Click OK to download a JSON backup, or Cancel to skip.",
-    );
-    if (wantsBackup) exportDataJSON(data);
-
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-    }
-
-    localStorage.removeItem(STORE_KEY);
-    localStorage.removeItem(PIN_KEY);
-    localStorage.removeItem(THEME_KEY);
-
-    alert("App data cleared. Reloading now…");
-    location.reload();
-  } catch (e) {
-    alert("Reset failed: " + e.message);
+async function clearAppStorage() {
+  if ("serviceWorker" in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
   }
+
+  localStorage.removeItem(STORE_KEY);
+  localStorage.removeItem(SECURE_STORE_KEY);
+  localStorage.removeItem(PIN_KEY);
+  localStorage.removeItem(THEME_KEY);
+  localStorage.removeItem(PREFS_KEY);
+  localStorage.removeItem(REMINDER_STATE_KEY);
+}
+
+function resolveInitialTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored) return stored;
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+  } catch (e) {
+    console.warn("Unable to resolve initial theme", e);
+  }
+  return "light";
 }
 
 function useTheme() {
-  const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || "light");
+  const [theme, setTheme] = useState(() => resolveInitialTheme());
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") root.classList.add("dark");
@@ -1644,11 +1641,10 @@ function usePIN() {
     async (attempt) => {
       if (!hasPIN) {
         setUnlocked(true);
-        return true;
+        return { success: true };
       }
       if (!attempt) {
-        alert("Enter your 4-digit PIN");
-        return false;
+        return { success: false, error: "Enter your 4-digit PIN" };
       }
       try {
         const saltBuffer = fromBase64(pinInfo.salt);
@@ -1662,13 +1658,12 @@ function usePIN() {
           setEncryptionKey(key);
           setUnlocked(true);
           setUnlockGeneration((g) => g + 1);
-          return true;
+          return { success: true };
         }
       } catch (e) {
         console.warn("PIN unlock failed", e);
       }
-      alert("Incorrect PIN");
-      return false;
+      return { success: false, error: "Incorrect PIN" };
     },
     [hasPIN, pinInfo],
   );
@@ -1681,11 +1676,10 @@ function usePIN() {
         setEncryptionKey(null);
         setUnlocked(true);
         setUnlockGeneration((g) => g + 1);
-        return true;
+        return { success: true, message: "PIN removed." };
       }
       if (pin.length !== 4) {
-        alert("PIN must be exactly 4 digits");
-        return false;
+        return { success: false, error: "PIN must be exactly 4 digits" };
       }
       try {
         const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -1701,14 +1695,13 @@ function usePIN() {
         setUnlocked(true);
         setUnlockGeneration((g) => g + 1);
         storeDeviceCredential(pin);
-        return true;
+        return { success: true, message: hasPIN ? "PIN updated." : "PIN set." };
       } catch (e) {
         console.error("Failed to set PIN", e);
-        alert("Could not secure PIN. Please try again.");
-        return false;
+        return { success: false, error: "Could not secure PIN. Please try again." };
       }
     },
-    [],
+    [hasPIN],
   );
 
   return { hasPIN, pinInfo, unlocked, tryUnlock, updatePIN, encryptionKey, unlockGeneration };
@@ -1730,6 +1723,44 @@ function App() {
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [affirmation, setAffirmation] = useState("");
   const timerCardRef = useRef(null);
+  const [notifications, setNotifications] = useState([]);
+
+  const dismissNotification = useCallback((id) => {
+    setNotifications((prev) => prev.filter((note) => note.id !== id));
+  }, []);
+
+  const notify = useCallback((notification) => {
+    const id = notification.id || randomId();
+    const note = {
+      id,
+      type: notification.type || "info",
+      message: notification.message,
+      actions: notification.actions || [],
+    };
+    setNotifications((prev) => [...prev, note]);
+    const duration = notification.autoCloseMs ?? (note.actions.length ? null : 6000);
+    if (typeof window !== "undefined" && duration && duration > 0) {
+      window.setTimeout(() => {
+        setNotifications((prev) => prev.filter((item) => item.id !== id));
+      }, duration);
+    }
+    return id;
+  }, []);
+
+  const handleNotificationAction = useCallback(
+    async (id, action) => {
+      try {
+        if (typeof action.onClick === "function") {
+          await action.onClick();
+        }
+      } finally {
+        if (action.dismiss !== false) {
+          dismissNotification(id);
+        }
+      }
+    },
+    [dismissNotification],
+  );
 
   const historyLimit = 10;
 
@@ -1959,10 +1990,74 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [date]);
 
-  if (!unlocked) return <LockScreen tryUnlock={tryUnlock} />;
+  const performReset = useCallback(
+    async ({ withBackup }) => {
+      try {
+        if (withBackup) {
+          try {
+            exportDataJSON({ data, preferences });
+            notify({ type: "success", message: "Backup downloaded.", autoCloseMs: 4000 });
+          } catch (error) {
+            notify({ type: "error", message: `Backup failed: ${error?.message || error}` });
+            return;
+          }
+        }
+        await clearAppStorage();
+        notify({
+          type: "success",
+          message: "App data cleared. Reload to start fresh.",
+          actions: [
+            {
+              label: "Reload now",
+              onClick: () => window.location.reload(),
+            },
+          ],
+          autoCloseMs: 0,
+        });
+      } catch (error) {
+        notify({ type: "error", message: `Reset failed: ${error?.message || error}` });
+      }
+    },
+    [data, notify, preferences],
+  );
+
+  const requestReset = useCallback(() => {
+    notify({
+      type: "warning",
+      message: "Reset the app? This clears all local data. Download a backup first if you’d like to keep a copy.",
+      actions: [
+        {
+          label: "Backup & reset",
+          onClick: () => performReset({ withBackup: true }),
+        },
+        {
+          label: "Reset without backup",
+          onClick: () => performReset({ withBackup: false }),
+        },
+      ],
+      autoCloseMs: 0,
+    });
+  }, [notify, performReset]);
+
+  if (!unlocked)
+    return (
+      <>
+        <NotificationCenter
+          notifications={notifications}
+          onDismiss={dismissNotification}
+          onAction={handleNotificationAction}
+        />
+        <LockScreen tryUnlock={tryUnlock} notify={notify} />
+      </>
+    );
 
   return (
     <div className="app-shell">
+      <NotificationCenter
+        notifications={notifications}
+        onDismiss={dismissNotification}
+        onAction={handleNotificationAction}
+      />
       <div className="relative z-10 flex min-h-screen flex-col">
         {!preferences.onboardingComplete && (
           <OnboardingDialog onComplete={() => updatePreferences({ onboardingComplete: true })} />
@@ -1990,7 +2085,7 @@ function App() {
                 <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
                   {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
                 </button>
-                <PinMenu hasPIN={hasPIN} updatePIN={updatePIN} />
+                <PinMenu hasPIN={hasPIN} updatePIN={updatePIN} notify={notify} />
               </div>
             </div>
           </div>
@@ -2585,6 +2680,7 @@ function App() {
                   setData={setData}
                   preferences={preferences}
                   updatePreferences={updatePreferences}
+                  notify={notify}
                 />
               </Card>
 
@@ -2600,7 +2696,7 @@ function App() {
                   </div>
                   <button
                     className="btn bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30"
-                    onClick={resetApp}
+                    onClick={requestReset}
                   >
                     Reset App (export → clear → reload)
                   </button>
@@ -3247,6 +3343,20 @@ function StepperRow({ label, value, min, max, onChange }) {
 }
 
 function TimerRow({ label, minutes, onChange }) {
+  const handleChange = (e) => {
+    const { value } = e.target;
+    if (value === "") {
+      onChange(0);
+      return;
+    }
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) {
+      onChange(0);
+      return;
+    }
+    onChange(Math.max(0, parsed));
+  };
+
   return (
     <div className="flex flex-col gap-2 pr-2">
       <div className="flex items-center justify-between">
@@ -3258,8 +3368,10 @@ function TimerRow({ label, minutes, onChange }) {
       <div className="flex gap-2">
         <input
           type="number"
+          min="0"
+          step="1"
           value={minutes}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={handleChange}
           className="w-24 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 px-2 py-1 outline-none"
         />
       </div>
@@ -3654,10 +3766,64 @@ function ReminderPlanner({ reminders, updatePreferences, allowNotifications, req
   );
 }
 
+function NotificationCenter({ notifications, onDismiss, onAction }) {
+  if (!notifications || notifications.length === 0) return null;
+
+  const toneClasses = {
+    success: "border-emerald-500/80 bg-emerald-50/90 text-emerald-900 dark:border-emerald-400/70 dark:bg-emerald-900/40 dark:text-emerald-100",
+    error: "border-red-500/80 bg-red-50/90 text-red-900 dark:border-red-400/70 dark:bg-red-900/40 dark:text-red-100",
+    warning: "border-amber-500/80 bg-amber-50/90 text-amber-900 dark:border-amber-400/70 dark:bg-amber-900/40 dark:text-amber-100",
+    info: "border-sky-500/80 bg-sky-50/90 text-sky-900 dark:border-sky-400/70 dark:bg-sky-900/40 dark:text-sky-100",
+  };
+
+  return (
+    <div className="pointer-events-none fixed top-4 right-4 z-50 flex w-full max-w-sm flex-col gap-3" aria-live="polite">
+      {notifications.map((note) => {
+        const tone = toneClasses[note.type] || toneClasses.info;
+        const role = note.type === "error" ? "alert" : "status";
+        const live = note.type === "error" ? "assertive" : "polite";
+        return (
+          <div
+            key={note.id}
+            className={`pointer-events-auto rounded-2xl border-l-4 p-4 shadow-lg backdrop-blur-xl ${tone}`}
+            role={role}
+            aria-live={live}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-1 text-sm leading-relaxed">{note.message}</div>
+              <button
+                type="button"
+                className="btn text-xs px-2 py-1"
+                onClick={() => onDismiss(note.id)}
+              >
+                Dismiss
+              </button>
+            </div>
+            {note.actions && note.actions.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {note.actions.map((action, index) => (
+                  <button
+                    key={action.label + index}
+                    type="button"
+                    className="btn text-xs"
+                    onClick={() => onAction(note.id, action)}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AffirmationBanner({ message, onDismiss }) {
   if (!message) return null;
   return (
-    <div className="glass-card affirmation-card">
+    <div className="glass-card affirmation-card" role="status" aria-live="polite">
       <div className="flex items-start gap-3">
         <span className="text-2xl" aria-hidden="true">
           🕯️
@@ -3720,15 +3886,78 @@ function OnboardingDialog({ onComplete }) {
   const [step, setStep] = useState(0);
   const totalSteps = ONBOARDING_STEPS.length;
   const current = ONBOARDING_STEPS[step];
+  const dialogRef = useRef(null);
+  const initialFocusRef = useRef(null);
+  const previouslyFocusedRef = useRef(null);
+  const titleId = useMemo(() => `onboarding-title-${step}`, [step]);
+  const bodyId = useMemo(() => `onboarding-body-${step}`, [step]);
+
+  useEffect(() => {
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (previouslyFocusedRef.current && typeof previouslyFocusedRef.current.focus === "function") {
+        previouslyFocusedRef.current.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (initialFocusRef.current) {
+      initialFocusRef.current.focus();
+    }
+  }, [step]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll(
+          'a[href], button:not([disabled]), textarea, input:not([type="hidden"]), select, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true");
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (active === first || !dialogRef.current.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   if (!current) return null;
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/40 backdrop-blur-sm px-4">
-      <div className="w-full max-w-lg rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xl">
+      <div
+        ref={dialogRef}
+        className="w-full max-w-lg rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={bodyId}
+      >
         <div className="text-xs uppercase tracking-wide text-emerald-600">Step {step + 1} of {totalSteps}</div>
-        <h2 className="mt-2 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{current.title}</h2>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{current.body}</p>
+        <h2 id={titleId} className="mt-2 text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+          {current.title}
+        </h2>
+        <p id={bodyId} className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+          {current.body}
+        </p>
         <div className="mt-6 flex justify-between items-center">
           <button className="text-xs text-zinc-500 hover:text-zinc-700" onClick={() => onComplete()}>
             Skip tour
@@ -3736,6 +3965,7 @@ function OnboardingDialog({ onComplete }) {
           <div className="flex gap-2">
             <button
               className="btn"
+              ref={initialFocusRef}
               onClick={() => {
                 if (step + 1 >= totalSteps) onComplete();
                 else setStep((s) => s + 1);
@@ -3894,7 +4124,7 @@ function MiniMonth({ dots, onPick, current }) {
   );
 }
 
-function BackupControls({ data, setData, preferences, updatePreferences }) {
+function BackupControls({ data, setData, preferences, updatePreferences, notify }) {
   const exportJSON = () => {
     const payload = { data, preferences };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -3928,9 +4158,9 @@ function BackupControls({ data, setData, preferences, updatePreferences }) {
         if (obj.preferences && typeof obj.preferences === "object") {
           updatePreferences((prev) => ({ ...prev, ...obj.preferences }));
         }
-        alert("Import successful.");
+        notify?.({ type: "success", message: "Import successful." });
       } catch (e) {
-        alert("Import failed: " + e.message);
+        notify?.({ type: "error", message: `Import failed: ${e.message}` });
       }
     };
     reader.readAsText(file);
@@ -4054,7 +4284,7 @@ function CustomMetricManager({ customMetrics, updatePreferences }) {
   );
 }
 
-function PinMenu({ hasPIN, updatePIN }) {
+function PinMenu({ hasPIN, updatePIN, notify }) {
   const [open, setOpen] = useState(false);
   const [val, setVal] = useState("");
   const [working, setWorking] = useState(false);
@@ -4081,16 +4311,19 @@ function PinMenu({ hasPIN, updatePIN }) {
               disabled={working}
               onClick={async () => {
                 if (val.length !== 4) {
-                  alert("Enter 4 digits");
+                  notify?.({ type: "error", message: "Enter 4 digits" });
                   return;
                 }
                 setWorking(true);
-                const success = await updatePIN(val);
+                const result = await updatePIN(val);
                 setWorking(false);
-                if (success) {
-                  setOpen(false);
-                  setVal("");
+                if (!result?.success) {
+                  if (result?.error) notify?.({ type: "error", message: result.error });
+                  return;
                 }
+                if (result?.message) notify?.({ type: "success", message: result.message });
+                setOpen(false);
+                setVal("");
               }}
             >
               {hasPIN ? "Update" : "Set"}
@@ -4100,8 +4333,13 @@ function PinMenu({ hasPIN, updatePIN }) {
               disabled={working || !hasPIN}
               onClick={async () => {
                 setWorking(true);
-                await updatePIN(null);
+                const result = await updatePIN(null);
                 setWorking(false);
+                if (!result?.success) {
+                  if (result?.error) notify?.({ type: "error", message: result.error });
+                  return;
+                }
+                if (result?.message) notify?.({ type: "success", message: result.message });
                 setVal("");
                 setOpen(false);
               }}
@@ -4115,32 +4353,35 @@ function PinMenu({ hasPIN, updatePIN }) {
   );
 }
 
-function LockScreen({ tryUnlock }) {
+function LockScreen({ tryUnlock, notify }) {
   const [val, setVal] = useState("");
   const [working, setWorking] = useState(false);
 
   const submit = async (pinValue = val) => {
     if (working) return;
     setWorking(true);
-    const ok = await tryUnlock(pinValue);
+    const result = await tryUnlock(pinValue);
     setWorking(false);
-    if (!ok) setVal("");
+    if (!result?.success) {
+      if (result?.error) notify?.({ type: "error", message: result.error });
+      setVal("");
+    }
   };
 
   const useDeviceCredential = async () => {
     try {
       if (!navigator.credentials) {
-        alert("Device credential unlock not supported in this browser.");
+        notify?.({ type: "error", message: "Device credential unlock not supported in this browser." });
         return;
       }
       const credential = await navigator.credentials.get({ password: true, mediation: "optional" });
       if (!credential || credential.id !== DEVICE_CREDENTIAL_ID || !credential.password) {
-        alert("No saved device credential was found. Set a PIN first to store one.");
+        notify?.({ type: "error", message: "No saved device credential was found. Set a PIN first to store one." });
         return;
       }
       submit(credential.password);
     } catch (e) {
-      alert("Could not use saved credential: " + e.message);
+      notify?.({ type: "error", message: `Could not use saved credential: ${e.message}` });
     }
   };
 
