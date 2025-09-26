@@ -3592,9 +3592,9 @@ function TopNav({
   return /*#__PURE__*/React.createElement("div", {
     className: "glass-card grid gap-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2"
+    className: "grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+    className: "btn w-full sm:w-auto",
     onClick: () => setDate(prevDay(date, -1))
   }, "\u2190 Prev"), /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -3602,16 +3602,14 @@ function TopNav({
     onChange: e => {
       setDate(e.target.value);
     },
-    className: "rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+    className: "rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 col-span-2 sm:col-span-1 sm:w-auto sm:flex-1"
   }), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+    className: "btn w-full sm:w-auto",
     onClick: () => setDate(todayISO())
   }, "Today"), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+    className: "btn w-full sm:w-auto",
     onClick: () => setDate(prevDay(date, 1))
-  }, "Next \u2192"), /*#__PURE__*/React.createElement("span", {
-    className: "ml-auto text-xs text-zinc-500 dark:text-zinc-400"
-  }, "Tip: Use \u2190 \u2192 keys")), /*#__PURE__*/React.createElement(MiniMonth, {
+  }, "Next \u2192")), /*#__PURE__*/React.createElement(MiniMonth, {
     dots: dots,
     onPick: setDate,
     current: date
