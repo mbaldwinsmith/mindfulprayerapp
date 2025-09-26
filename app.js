@@ -1693,27 +1693,36 @@ function App() {
     className: "btn btn-action",
     onClick: exportBackupJSON,
     type: "button",
-    title: "Download backup (JSON)"
+    title: "Download backup (JSON)",
+    "aria-label": "Export backup (JSON)"
   }, /*#__PURE__*/React.createElement("i", {
     className: "fa-solid fa-download",
     "aria-hidden": "true"
-  }), /*#__PURE__*/React.createElement("span", null, "Export")), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline sm:ml-2"
+  }, "Export")), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-action",
     onClick: triggerBackupImport,
     type: "button",
-    title: "Upload backup (JSON)"
+    title: "Upload backup (JSON)",
+    "aria-label": "Import backup (JSON)"
   }, /*#__PURE__*/React.createElement("i", {
     className: "fa-solid fa-upload",
     "aria-hidden": "true"
-  }), /*#__PURE__*/React.createElement("span", null, "Restore")), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline sm:ml-2"
+  }, "Import")), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-action",
     type: "button",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
-    title: "Toggle theme"
+    title: "Toggle theme",
+    "aria-label": theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
   }, /*#__PURE__*/React.createElement("i", {
     className: `fa-solid ${theme === "dark" ? "fa-sun" : "fa-moon"}`,
     "aria-hidden": "true"
-  }), /*#__PURE__*/React.createElement("span", null, theme === "dark" ? "Light Mode" : "Dark Mode"))))))), /*#__PURE__*/React.createElement("main", {
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline sm:ml-2"
+  }, theme === "dark" ? "Light Mode" : "Dark Mode"))))))), /*#__PURE__*/React.createElement("main", {
     className: "relative z-10 mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 pb-12 pt-8"
   }, /*#__PURE__*/React.createElement("section", {
     className: "glass-card welcome-card"
@@ -2285,7 +2294,7 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-6 md:grid-cols-2"
   }, /*#__PURE__*/React.createElement(Card, {
-    title: "Backup / Restore"
+    title: "Backup / Import"
   }, /*#__PURE__*/React.createElement(BackupControls, {
     onExportJSON: exportBackupJSON,
     onExportCSV: exportBackupCSV,
