@@ -3859,7 +3859,10 @@ function NotificationCenter({ notifications, onDismiss, onAction }) {
   };
 
   return (
-    <div className="pointer-events-none fixed top-4 right-4 z-50 flex w-full max-w-sm flex-col gap-3" aria-live="polite">
+    <div
+      className="pointer-events-none fixed inset-x-4 top-4 z-50 flex max-w-full flex-col gap-3 sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-sm"
+      aria-live="polite"
+    >
       {notifications.map((note) => {
         const tone = toneClasses[note.type] || toneClasses.info;
         const role = note.type === "error" ? "alert" : "status";
