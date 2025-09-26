@@ -2175,7 +2175,7 @@ function App() {
           </div>
         </header>
 
-        <main className="relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8">
+        <main className="relative z-10 mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 pb-12 pt-8">
           <section className="glass-card welcome-card">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="flex-1">
