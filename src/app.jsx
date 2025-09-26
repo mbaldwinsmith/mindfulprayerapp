@@ -1864,9 +1864,6 @@ function App() {
                     {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
                   </button>
                 </div>
-                <div className="text-right text-xs leading-snug text-emerald-700/80 sm:text-sm dark:text-emerald-300/80">
-                  Data stays on this device. Use the Backup / Restore tools below to move it between browsers.
-                </div>
               </div>
             </div>
           </div>
