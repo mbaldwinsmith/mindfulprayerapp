@@ -1,3 +1,6 @@
+// Entry point for the prayer tracker SPA. All stateful React logic and helper
+// utilities live in this file so that the static build step can output
+// `app.js` from a single source of truth.
 const {
   useCallback,
   useEffect,
@@ -5,6 +8,9 @@ const {
   useRef,
   useState
 } = React;
+
+// Decorative SVG used across the UI. The compiled bundle hydrates this value
+// from `window.BRUSHSTROKE_CROSS` when it is already inlined on the page.
 const BRUSHSTROKE_CROSS = typeof window !== "undefined" && window.BRUSHSTROKE_CROSS ? window.BRUSHSTROKE_CROSS : "";
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const ymd = d => d.toISOString().slice(0, 10);
@@ -17,6 +23,10 @@ const JSON_EXPORT_VERSION = 2;
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 const randomId = () => Math.random().toString(36).slice(2, 10);
+
+// Creates the fully-populated shape for a day's log so that downstream code
+// never has to guard against missing nested objects.  This makes state updates
+// predictable when merging partial edits from the UI.
 const blankDay = date => ({
   date,
   scripture: "",
@@ -60,6 +70,9 @@ const blankDay = date => ({
   contextTags: [],
   customMetrics: {}
 });
+
+// Weekly anchors represent recurring communal practices that are tracked on a
+// simple completed/not-completed basis.
 const WEEKLY_ANCHORS = [{
   key: "mass",
   label: "Sunday Mass"
@@ -90,6 +103,9 @@ const WEEKLY_ANCHOR_LABELS = WEEKLY_ANCHORS.reduce((acc, anchor) => {
   return acc;
 }, {});
 const WEEKLY_ANCHOR_KEYS = WEEKLY_ANCHORS.map(anchor => anchor.key);
+
+// Mood presets keep the dropdown consistent while letting the UI decorate the
+// choice with emoji.
 const MOOD_OPTIONS = [{
   value: "joyful",
   label: "Joyful",
@@ -120,7 +136,11 @@ const MOOD_OPTIONS = [{
   emoji: "🌅"
 }];
 const getMoodMeta = value => MOOD_OPTIONS.find(option => option.value === value) || null;
+
+// Starter tag suggestions to hint at themes for journaling.
 const TAG_SUGGESTIONS = ["gratitude", "lament", "discernment", "family", "stillness", "healing", "mercy", "service", "intercession", "rest"];
+
+// Default reminder configuration that is cloned into per-user preferences.
 const DEFAULT_REMINDERS = {
   morning: {
     enabled: false,
@@ -138,6 +158,9 @@ const DEFAULT_REMINDERS = {
     label: "Evening examen"
   }
 };
+
+// Baseline preference state that can be merged with persisted data or export
+// files.
 const DEFAULT_PREFERENCES = {
   onboardingComplete: false,
   showGuidedPrompts: true,
@@ -147,15 +170,25 @@ const DEFAULT_PREFERENCES = {
   spotlightIndex: 0,
   tomorrowPlan: ""
 };
+
+// Gently worded encouragements shown when the user completes notable actions.
 const AFFIRMATION_MESSAGES = ["Well done — you returned to stillness today.", "Remember, even one breath of prayer is beloved by God.", "Grace meets you in this quiet — thank you for pausing."];
+
+// Variants are parameterized helpers to make the affirmations contextual.
 const TIMER_AFFIRMATIONS = [mins => `Well done — you rested with Christ for ${mins} minute${mins === 1 ? "" : "s"}.`, mins => `Each quiet breath matters. Logged ${mins} mindful minute${mins === 1 ? "" : "s"}.`, mins => `You offered ${mins} minute${mins === 1 ? "" : "s"} of steady prayer. God delights in your return.`];
+
+// Short celebratory messages used when a streak milestone is detected.
 const STREAK_AFFIRMATIONS = [streak => `You’ve tended prayer for ${streak} day${streak === 1 ? "" : "s"} in a row. Keep returning gently.`, streak => `Beautiful — a ${streak}-day rhythm of prayer and presence.`, streak => `Christ holds your ${streak}-day streak with joy.`];
+
+// Utility helper for picking a single random item from a list of options.
 function pickRandomEntry(list) {
   if (!Array.isArray(list) || !list.length) return null;
   const index = Math.floor(Math.random() * list.length);
   return list[index];
 }
 let chimeAudioContext = null;
+// Uses the Web Audio API for a lightweight completion chime. Autoplay errors
+// are intentionally swallowed because browsers can block audio in some states.
 async function playChime() {
   if (typeof window === "undefined") return;
   try {
@@ -194,6 +227,9 @@ const BREATHE_MEDITATION_TOOLTIP = "Sit upright in silence for a few deep breath
 const JESUS_PRAYER_TOOLTIP = "(In breath) Lord Jesus Christ, Son of God, (out breath) have mercy on me, a sinner.";
 const STILLNESS_PAUSE_TOOLTIP = "Wherever you are, take three slow breaths. Rest in stillness, imagining Christ sitting with you.";
 const GRATITUDE_PRAYER_TOOLTIP = "Give thanks to God for one person, event, or challenge from today.";
+
+// Rosary helpers pair the day of week with the recommended mysteries so the UI
+// can surface the proper meditation content without duplicating logic.
 const ROSARY_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ROSARY_MYSTERIES = {
   joyful: {
@@ -226,8 +262,15 @@ const ROSARY_SCHEDULE = {
   5: "sorrowful",
   6: "joyful"
 };
+
+// Rotation of short invitations paired with the scripture reading suggestion
+// for the day.
 const SCRIPTURE_FOCUS_ROTATION = ["Rest in God's steady presence today.", "Welcome the gentle light of Christ.", "Let the Spirit breathe healing within.", "Receive the Father's compassionate mercy.", "Stand firm in God's faithful promises.", "Find hope in the risen Lord.", "Rejoice in grace that renews.", "Draw near with gratitude and trust.", "Open your heart to loving kindness.", "Wait on the Lord with courage.", "Walk in the freedom of forgiveness.", "Savor the peace Jesus gives.", "Lift your voice in thankful praise.", "Lean on God's everlasting arms.", "Embrace the joy of salvation.", "Let God's word steady your steps.", "Remember you are held in love.", "Invite the Spirit to guide you.", "Rest under God's protective wings.", "Let hope anchor your soul.", "Celebrate the light that overcomes darkness.", "Trust the Shepherd to lead you.", "Drink deeply from God's living water.", "Carry Christ's compassion into the day."];
 const SCRIPTURE_SEED_REFERENCES = ["Psalm 1:1-3", "Psalm 3:3-6", "Psalm 4:3-8", "Psalm 5:1-3", "Psalm 8:1-4", "Psalm 9:9-11", "Psalm 13:5-6", "Psalm 16:5-11", "Psalm 18:1-3", "Psalm 18:28-36", "Psalm 19:7-10", "Psalm 20:1-5", "Psalm 23:1-6", "Psalm 25:4-10", "Psalm 27:1-6", "Psalm 28:6-9", "Psalm 29:10-11", "Psalm 30:1-5", "Psalm 31:19-24", "Psalm 32:1-7", "Psalm 33:18-22", "Psalm 34:1-10", "Psalm 34:17-22", "Psalm 36:5-9", "Psalm 37:3-7", "Psalm 40:1-5", "Psalm 42:1-5", "Psalm 42:8-11", "Psalm 43:3-5", "Psalm 46:1-7", "Psalm 46:8-11", "Psalm 48:9-14", "Psalm 51:10-13", "Psalm 55:16-22", "Psalm 56:3-4", "Psalm 57:7-11", "Psalm 61:1-4", "Psalm 62:1-8", "Psalm 63:1-8", "Psalm 65:9-13", "Psalm 66:16-20", "Psalm 68:4-10", "Psalm 71:1-8", "Psalm 71:17-21", "Psalm 73:23-28", "Psalm 77:11-15", "Psalm 80:1-3", "Psalm 84:1-7", "Psalm 85:7-13", "Psalm 86:11-13", "Psalm 90:1-2", "Psalm 90:12-17", "Psalm 91:1-6", "Psalm 91:9-16", "Psalm 92:1-5", "Psalm 94:17-19", "Psalm 95:1-7", "Psalm 96:1-6", "Psalm 97:10-12", "Psalm 98:1-3", "Psalm 100:1-5", "Psalm 101:1-3", "Psalm 103:1-5", "Psalm 103:8-14", "Psalm 103:17-22", "Psalm 104:1-4", "Psalm 104:24-30", "Psalm 105:1-5", "Psalm 107:1-9", "Psalm 108:1-6", "Psalm 111:1-5", "Psalm 112:1-9", "Psalm 113:1-9", "Psalm 115:9-15", "Psalm 116:1-9", "Psalm 116:12-19", "Psalm 117:1-2", "Psalm 118:14-24", "Psalm 119:9-16", "Psalm 119:33-40", "Psalm 119:49-56", "Psalm 119:57-64", "Psalm 119:89-96", "Psalm 119:97-105", "Psalm 121:1-8", "Psalm 122:6-9", "Psalm 124:6-8", "Psalm 125:1-5", "Psalm 126:1-6", "Psalm 130:1-8", "Psalm 131:1-3", "Psalm 132:13-18", "Psalm 133:1-3", "Psalm 134:1-3", "Psalm 138:1-8", "Psalm 139:1-10", "Psalm 139:13-18", "Psalm 143:5-12", "Psalm 145:8-13", "Psalm 146:5-10", "Isaiah 9:2-7", "Isaiah 11:1-9", "Isaiah 12:1-6", "Isaiah 25:1-9", "Isaiah 26:3-9", "Isaiah 30:18-21", "Isaiah 32:1-2", "Isaiah 33:17-22", "Isaiah 35:1-10", "Isaiah 40:1-5", "Isaiah 40:9-11", "Isaiah 40:28-31", "Isaiah 41:8-13", "Isaiah 41:17-20", "Isaiah 42:5-9", "Isaiah 43:1-7", "Isaiah 43:16-21", "Isaiah 44:1-5", "Isaiah 44:21-23", "Isaiah 45:22-25", "Isaiah 49:13-16", "Isaiah 51:3-6", "Isaiah 51:11-16", "Isaiah 52:7-10", "Isaiah 54:4-10", "Isaiah 55:1-7", "Isaiah 55:8-13", "Isaiah 57:14-19", "Isaiah 58:6-12", "Isaiah 60:1-5", "Isaiah 60:18-22", "Isaiah 61:1-4", "Isaiah 61:10-11", "Isaiah 62:1-5", "Isaiah 63:7-9", "Isaiah 65:17-19", "Isaiah 65:20-25", "Isaiah 66:12-14", "Isaiah 66:18-23", "Matthew 4:23-25", "Matthew 5:1-12", "Matthew 5:13-16", "Matthew 5:38-48", "Matthew 6:5-13", "Matthew 6:19-24", "Matthew 6:25-34", "Matthew 7:7-11", "Matthew 7:24-29", "Matthew 8:1-4", "Matthew 8:5-13", "Matthew 8:23-27", "Matthew 9:9-13", "Matthew 9:18-26", "Matthew 9:35-38", "Matthew 11:25-30", "Matthew 12:15-21", "Matthew 13:1-9", "Matthew 13:18-23", "Matthew 13:31-33", "Matthew 14:13-21", "Matthew 14:22-33", "Matthew 15:29-31", "Matthew 16:13-20", "Matthew 17:1-9", "Matthew 18:1-5", "Matthew 18:12-20", "Matthew 19:13-15", "Matthew 20:29-34", "Matthew 21:1-9", "Matthew 22:34-40", "Matthew 23:37-39", "Matthew 25:31-40", "Matthew 26:26-29", "Matthew 28:1-10", "Matthew 28:16-20", "Mark 1:14-20", "Mark 1:29-34", "Mark 1:35-39", "Mark 2:1-12", "Mark 2:13-17", "Mark 4:1-9", "Mark 4:26-32", "Mark 4:35-41", "Mark 5:21-34", "Mark 5:35-43", "Mark 6:30-44", "Mark 6:45-52", "Mark 7:31-37", "Mark 8:1-9", "Mark 9:2-8", "Mark 9:33-37", "Mark 10:13-16", "Mark 10:35-45", "Mark 10:46-52", "Mark 12:28-34", "Luke 1:46-55", "Luke 1:68-79", "Luke 2:8-14", "Luke 2:25-32", "Luke 3:21-22", "Luke 4:16-21", "Luke 4:38-44", "Luke 5:1-11", "Luke 5:12-16", "Luke 6:20-26", "Luke 6:27-36", "Luke 6:37-42", "Luke 7:11-17", "Luke 7:36-50", "Luke 8:1-3", "Luke 8:22-25", "Luke 8:40-48", "Luke 9:10-17", "Luke 9:28-36", "Luke 10:1-9", "Luke 10:17-24", "Luke 10:25-37", "Luke 11:9-13", "Luke 12:22-32", "Luke 13:10-17", "Luke 15:1-7", "Luke 15:8-10", "Luke 15:11-24", "Luke 18:1-8", "Luke 19:1-10", "John 1:1-5", "John 1:14-18", "John 2:1-11", "John 3:1-8", "John 3:16-21", "John 4:5-14", "John 4:27-42", "John 5:1-9", "John 6:35-40", "John 6:47-58", "John 7:37-39", "John 8:12-20", "John 8:31-36", "John 9:1-7", "John 10:7-16", "John 10:27-30", "John 11:17-27", "John 11:32-44", "John 12:20-26", "John 13:1-15", "John 13:34-35", "John 14:1-7", "John 14:15-21", "John 14:25-27", "Acts 2:42-47", "Acts 3:1-10", "Acts 4:23-31", "Acts 9:1-9", "Acts 9:10-19", "Acts 10:34-43", "Acts 11:19-24", "Acts 12:5-17", "Acts 16:6-10", "Acts 16:25-34", "Acts 20:32-35", "Acts 27:21-26", "Acts 28:1-10", "Romans 5:1-5", "Romans 5:6-11", "Romans 8:1-4", "Romans 8:14-17", "Romans 8:18-25", "Romans 8:26-30", "Romans 8:31-39", "Romans 12:9-13", "Romans 12:14-21", "Romans 13:11-14", "Romans 15:1-6", "Romans 15:13", "1 Corinthians 1:3-9", "1 Corinthians 2:9-12", "1 Corinthians 3:16-17", "1 Corinthians 13:1-13", "1 Corinthians 15:20-26", "1 Corinthians 15:50-58", "2 Corinthians 1:3-7", "2 Corinthians 3:16-18", "2 Corinthians 4:6-10", "2 Corinthians 4:16-18", "2 Corinthians 5:14-21", "2 Corinthians 6:16-18", "2 Corinthians 12:7-10", "Galatians 2:19-21", "Galatians 5:22-26", "Ephesians 1:3-10", "Ephesians 1:17-23", "Ephesians 2:1-7", "Ephesians 2:13-18", "Ephesians 3:14-21", "Ephesians 4:1-6", "Ephesians 4:31-32", "Ephesians 5:1-2", "Ephesians 6:10-18", "Philippians 1:3-11", "Philippians 1:20-26", "Philippians 2:1-11", "Philippians 2:12-18", "Philippians 3:7-14", "Philippians 4:4-9", "Philippians 4:10-13", "Colossians 1:9-14", "Colossians 1:15-20", "Colossians 2:6-10", "Colossians 3:1-4", "Colossians 3:12-17", "1 Thessalonians 3:9-13", "1 Thessalonians 4:13-18", "1 Thessalonians 5:4-11", "1 Thessalonians 5:12-24", "2 Thessalonians 2:13-17", "2 Thessalonians 3:3-5", "1 Timothy 1:12-17", "1 Timothy 4:12-16", "1 Timothy 6:11-16", "2 Timothy 1:6-14", "2 Timothy 2:1-7", "2 Timothy 3:14-17", "Titus 2:11-14", "Titus 3:4-7", "Philemon 4-7", "Hebrews 2:9-15", "Hebrews 4:14-16", "Hebrews 6:17-20", "Hebrews 10:19-25", "Hebrews 11:1-3", "Hebrews 11:8-16", "Hebrews 11:32-40", "Hebrews 12:1-3", "Hebrews 12:12-15", "Hebrews 13:1-6", "James 1:2-5", "James 1:16-18", "James 3:13-18", "James 5:13-16", "1 Peter 1:3-9", "1 Peter 2:4-10", "1 Peter 3:8-12", "1 Peter 4:8-11", "1 Peter 5:6-11", "2 Peter 1:3-8", "2 Peter 1:16-21", "1 John 1:5-9", "1 John 3:1-3", "1 John 3:16-20", "1 John 4:7-12", "1 John 4:16-19", "1 John 5:1-5", "2 John 5-8", "3 John 2-6", "Jude 20-25", "Revelation 1:12-18", "Revelation 4:1-6", "Revelation 5:8-14", "Revelation 7:9-17", "Revelation 12:10-12", "Revelation 19:1-9", "Revelation 21:1-5", "Revelation 21:22-27", "Revelation 22:1-5", "Revelation 22:16-21"];
+
+// Converts a freeform scripture reference (e.g., "Psalm 23:1-3") into the ESV
+// Biblia URL used by the quick links. Returns `null` if the input looks
+// malformed so callers can safely skip linking.
 function buildBibliaUrl(reference) {
   if (!reference) return null;
   const cleaned = reference.replace(/\s*\(ESV\)\s*$/i, "").trim();
@@ -256,6 +299,8 @@ function buildBibliaUrl(reference) {
   return `https://biblia.com/bible/esv/${path}`;
 }
 const CATECHISM_BASE_URL = "http://www.scborromeo.org/ccc/";
+
+// Selected Catechism readings rotate daily alongside the scripture plan.
 const CATECHISM_READINGS = [{
   slug: "p1s1c1a1",
   section: "Part One · Section One · Chapter One · Article 1",
@@ -425,6 +470,9 @@ const SCRIPTURE_SEED_PLAN = SCRIPTURE_SEED_REFERENCES.map((reference, index) => 
   focus: SCRIPTURE_FOCUS_ROTATION[index % SCRIPTURE_FOCUS_ROTATION.length],
   url: buildBibliaUrl(reference)
 }));
+
+// Converts an ISO date string into an index (0-365) so rotating content can be
+// mapped deterministically regardless of leap years.
 function getDayOfYearIndex(dateISO) {
   if (!dateISO) return 0;
   const parts = dateISO.split("-").map(part => Number(part));
@@ -434,6 +482,8 @@ function getDayOfYearIndex(dateISO) {
   const start = Date.UTC(year, 0, 1);
   return Math.floor((target - start) / 86400000);
 }
+
+// Look up the rosary mystery that matches the requested date.
 function getRosaryMysteryForDate(dateISO) {
   if (!dateISO) return null;
   const target = new Date(`${dateISO}T00:00:00`);
@@ -448,18 +498,24 @@ function getRosaryMysteryForDate(dateISO) {
     dayName: ROSARY_DAY_NAMES[dayOfWeek]
   };
 }
+
+// Daily scripture suggestion with an accompanying reflection phrase.
 function getScriptureSeedSuggestion(dateISO) {
   if (!dateISO) return null;
   const index = getDayOfYearIndex(dateISO);
   if (Number.isNaN(index)) return null;
   return SCRIPTURE_SEED_PLAN[index % SCRIPTURE_SEED_PLAN.length];
 }
+
+// Companion Catechism reading for the day.
 function getCatechismSuggestion(dateISO) {
   if (!dateISO) return null;
   const index = getDayOfYearIndex(dateISO);
   if (Number.isNaN(index)) return null;
   return CATECHISM_READINGS[index % CATECHISM_READINGS.length];
 }
+
+// Prompt banks feed the random guided-prayer suggestions in the UI.
 const LECTIO_PROMPTS = ["Read slowly and notice a word or phrase that shimmers.", "Listen for Christ speaking the passage directly to you.", "How does this scripture invite you to act in love today?", "Rest in silence after reading—receive the gift rather than striving."];
 const JOURNAL_PROMPTS = ["Where did you sense consolation or desolation today?", "Name a person you want to hold in prayer right now.", "What invitation from God feels most alive this evening?", "What resistance or distraction surfaced, and how might grace meet it?", "Celebrate one small victory of faithfulness from today."];
 const EXAMEN_PROMPTS = ["Review the day with gratitude and note any gentle surprises.", "Ask the Spirit to show a moment you wish had gone differently.", "Is there someone to forgive—or to ask forgiveness from?", "Offer tomorrow to God, trusting grace for what you cannot control."];
@@ -479,6 +535,9 @@ const PRACTICE_SPOTLIGHTS = [{
   title: "Community Check-In",
   body: "Send a short note to a spiritual friend sharing one gratitude and one need for prayer."
 }];
+
+// The onboarding carousel shows these friendly explanations when a new user
+// first opens the app.
 const ONBOARDING_STEPS = [{
   title: "Welcome to your prayer companion",
   body: "Track morning, midday, and evening practices—all stored privately on this device unless you export a backup."
@@ -494,6 +553,9 @@ const SUM_AGGREGATE = {
   accumulate: (acc, value) => acc + value,
   finalize: acc => acc
 };
+
+// Built-in metrics available to the analytics view. Custom metrics are merged
+// in at runtime based on user preferences.
 const BASE_METRIC_OPTIONS = [{
   value: "breathMinutes",
   label: "Breathe meditation (min)",
@@ -629,6 +691,9 @@ function buildCustomMetricOptions(customMetrics = []) {
     definition: metric
   }));
 }
+
+// Normalizes partially-complete persisted data into the fully-initialized day
+// shape expected by the UI.
 const normalizeDay = (input = {}) => ({
   date: input.date || todayISO(),
   scripture: input.scripture ?? "",
@@ -672,6 +737,8 @@ const normalizeDay = (input = {}) => ({
   contextTags: Array.isArray(input.contextTags) ? input.contextTags : [],
   customMetrics: input.customMetrics ?? {}
 });
+
+// Defensive guards when importing user preferences from disk.
 function sanitizeCustomMetrics(metrics) {
   if (!Array.isArray(metrics)) return [];
   return metrics.filter(metric => metric && typeof metric.id === "string" && metric.id).map(metric => ({
@@ -680,6 +747,8 @@ function sanitizeCustomMetrics(metrics) {
     unit: typeof metric.unit === "string" ? metric.unit : ""
   })).slice(0, 12);
 }
+
+// Accepts partial reminder objects and fills in defaults to keep shapes stable.
 function sanitizeReminder(reminder, fallback) {
   const base = fallback || {
     enabled: false,
@@ -704,6 +773,9 @@ function sanitizeReminders(reminders) {
     evening: sanitizeReminder(reminders?.evening, DEFAULT_REMINDERS.evening)
   };
 }
+
+// When exporting, merge preferences with defaults so the backup JSON is fully
+// explicit and portable.
 function sanitizePreferencesForExport(preferences = {}) {
   const merged = {
     ...DEFAULT_PREFERENCES,
@@ -720,6 +792,9 @@ function sanitizePreferencesForExport(preferences = {}) {
     reminders: sanitizeReminders(merged.reminders)
   };
 }
+
+// Reads a subset of keys from a user-supplied JSON backup and discards
+// anything unexpected to avoid clobbering the stored schema.
 function sanitizeImportedPreferences(raw) {
   if (!raw || typeof raw !== "object") return null;
   const sanitized = {};
@@ -740,6 +815,9 @@ function sanitizeImportedPreferences(raw) {
   }
   return Object.keys(sanitized).length ? sanitized : null;
 }
+
+// Used to determine when to celebrate a "completed" day and trigger
+// streak/affirmation logic.
 function dayHasActivity(day) {
   if (!day) return false;
   if (typeof day.scripture === "string" && day.scripture.trim()) return true;
@@ -770,6 +848,8 @@ function dayHasActivity(day) {
   }
   return false;
 }
+
+// Builds a list of recent days optionally filtered by a context tag.
 function collectRecentEntries(data, {
   tag = "",
   limit = 10
@@ -802,6 +882,8 @@ function collectRecentEntries(data, {
     totalMatching
   };
 }
+
+// Keeps long notes from overwhelming table rows.
 function truncateText(value, maxLength = 120) {
   if (value == null) return "";
   const normalized = String(value).replace(/\s+/g, " ").trim();
@@ -811,6 +893,8 @@ function truncateText(value, maxLength = 120) {
   }
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
+
+// Legacy export helper kept for backwards compatibility with older builds.
 function exportDataJSON(data) {
   const payload = createBackupPayload(data?.data ?? data ?? {}, data?.preferences ?? DEFAULT_PREFERENCES);
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -824,6 +908,8 @@ function exportDataJSON(data) {
   URL.revokeObjectURL(url);
   return true;
 }
+
+// Normalizes data + preferences into a portable export bundle.
 function createBackupPayload(data = {}, preferences = DEFAULT_PREFERENCES) {
   const normalizedData = {};
   if (data && typeof data === "object") {
@@ -844,6 +930,8 @@ function createBackupPayload(data = {}, preferences = DEFAULT_PREFERENCES) {
     preferences: sanitizePreferencesForExport(preferences)
   };
 }
+
+// Accepts multiple JSON shapes (legacy or new) and extracts the date-keyed map.
 function extractImportedDataMap(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (raw.data && typeof raw.data === "object") return raw.data;
@@ -854,6 +942,9 @@ function extractImportedDataMap(raw) {
     return acc;
   }, {});
 }
+
+// Carefully merges imported entries with existing data while capturing
+// user-facing warnings (e.g., if imported days overwrite local edits).
 function mergeImportedData(currentData, importedData, warnings) {
   const next = {
     ...currentData
@@ -918,6 +1009,8 @@ function processImportedBackup(raw, currentData) {
     warnings
   };
 }
+
+// Utility used by the reset flow to wipe all persisted app data.
 async function clearAppStorage() {
   if ("serviceWorker" in navigator) {
     const regs = await navigator.serviceWorker.getRegistrations();
@@ -928,6 +1021,8 @@ async function clearAppStorage() {
   localStorage.removeItem(PREFS_KEY);
   localStorage.removeItem(REMINDER_STATE_KEY);
 }
+
+// Favors the stored theme, falling back to the OS preference.
 function resolveInitialTheme() {
   try {
     const stored = localStorage.getItem(THEME_KEY);
@@ -940,6 +1035,8 @@ function resolveInitialTheme() {
   }
   return "light";
 }
+
+// Small hook to keep the theme value in sync with the DOM class and storage.
 function useTheme() {
   const [theme, setTheme] = useState(() => resolveInitialTheme());
   useEffect(() => {
@@ -952,6 +1049,9 @@ function useTheme() {
     setTheme
   };
 }
+
+// Reads stored preferences and merges them with defaults so missing keys do
+// not break the UI.
 function loadPreferences() {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
@@ -979,6 +1079,8 @@ function loadPreferences() {
     };
   }
 }
+
+// Provides reactive access to the preferences object plus an updater helper.
 function usePreferences() {
   const [preferences, setPreferences] = useState(() => loadPreferences());
   useEffect(() => {
@@ -1011,6 +1113,8 @@ function usePreferences() {
     setPreferences
   };
 }
+
+// Reminder snooze/done state lives in a separate blob to keep storage tidy.
 function loadReminderState() {
   try {
     const raw = localStorage.getItem(REMINDER_STATE_KEY);
@@ -1028,6 +1132,8 @@ function saveReminderState(state) {
     console.warn("Unable to persist reminder state", e);
   }
 }
+
+// Parses HH:MM strings into Date objects anchored to today.
 function parseReminderTime(timeStr) {
   if (!timeStr || typeof timeStr !== "string") return null;
   const parts = timeStr.split(":");
@@ -1039,6 +1145,8 @@ function parseReminderTime(timeStr) {
   d.setHours(hours, minutes, 0, 0);
   return d;
 }
+
+// Handles the lightweight local reminder system and optional web notifications.
 function useReminders(reminders, allowNotifications) {
   const [activeReminder, setActiveReminder] = useState(null);
   useEffect(() => {
@@ -1116,6 +1224,9 @@ function useReminders(reminders, allowNotifications) {
     requestNotifications
   };
 }
+
+// Persists tracker entries to localStorage and exposes helpers for updating
+// individual days.
 function useData() {
   const [data, setDataState] = useState({});
   const [ready, setReady] = useState(false);
@@ -1171,6 +1282,8 @@ function useData() {
     ready
   };
 }
+
+// Centralized helpers for updating the selected day's nested sections.
 function useDaySections(date, setDay) {
   const updateDay = useCallback(updater => {
     setDay(date, existing => {
@@ -1211,6 +1324,8 @@ function useDaySections(date, setDay) {
     updateWeekly: patch => updateSection("weekly", patch)
   }), [updateDay, updateSection]);
 }
+
+// Main page component orchestrating data flow, derived metrics, and modals.
 function App() {
   const {
     theme,
@@ -1279,6 +1394,8 @@ function App() {
     }
   }, [dismissNotification]);
   const historyLimit = 10;
+
+  // Download helpers let the user export their data to JSON/CSV files.
   const exportBackupJSON = useCallback(() => {
     const payload = createBackupPayload(data, preferences);
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -1303,6 +1420,8 @@ function App() {
     a.click();
     URL.revokeObjectURL(url);
   }, [data, preferences]);
+
+  // Import a backup that was previously exported from the tracker.
   const importBackupJSON = useCallback(file => new Promise(resolve => {
     if (!file) {
       resolve();
@@ -2330,6 +2449,8 @@ function App() {
     onFinish: handleMeditationFinish
   })));
 }
+
+// Card summarizing the recent history list and tag filters.
 function RecentEntriesCard({
   entries,
   totalMatching,
@@ -2404,6 +2525,8 @@ function RecentEntriesCard({
     className: "text-xs text-zinc-500 dark:text-zinc-400"
   }, hasFilter ? "Log a reflection with this tag to see it here." : "Once you log prayers or notes, a quick history appears for gentle review."));
 }
+
+// Single row entry used inside the recent history table.
 function RecentEntryRow({
   day,
   onSelectDate,
@@ -2514,6 +2637,8 @@ function RecentEntryRow({
     className: "timeline-meta italic"
   }, "Journal: ", notesPreview) : null));
 }
+
+// Wrapper for the metric trend charts and summary statistics.
 function MetricTrendsCard({
   selectedMetric,
   setSelectedMetric,
@@ -2581,6 +2706,8 @@ function MetricTrendsCard({
     metricLabel: metricConfig.label
   }));
 }
+
+// Tiny inline chart rendered with SVG so we can stay framework agnostic.
 function MetricSparkline({
   series,
   view,
@@ -2665,6 +2792,8 @@ function formatMetricValue(value) {
     maximumFractionDigits: 1
   });
 }
+
+// Shared heading style used across dashboard sections.
 function SectionHeading({
   title,
   description,
@@ -2688,6 +2817,8 @@ function SectionHeading({
     "aria-hidden": "true"
   }));
 }
+
+// Generic card layout primitive.
 function Card({
   title,
   children,
@@ -2704,6 +2835,8 @@ function Card({
     className: `grid gap-3 text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-300 ${contentClassName}`
   }, children));
 }
+
+// Accessible switch component for boolean preferences.
 function ToggleSwitch({
   checked,
   onChange,
@@ -2738,6 +2871,8 @@ function ToggleSwitch({
     className: "toggle-switch-thumb"
   })));
 }
+
+// Helper for rendering labeled toggle rows with consistent spacing.
 function ToggleRow({
   label,
   checked,
@@ -2755,6 +2890,8 @@ function ToggleRow({
     ariaLabelledBy: labelId
   }));
 }
+
+// Minimal progress bar used in the stats overview.
 function ProgressBar({
   value = 0,
   max = 1,
@@ -2776,6 +2913,8 @@ function ProgressBar({
     className: "progress-bar-label"
   }, label) : null);
 }
+
+// Decorative note explaining which rosary mysteries align with the day.
 function RosaryMysteryNote({
   mystery
 }) {
@@ -2796,6 +2935,8 @@ function RosaryMysteryNote({
     key: decade
   }, decade))));
 }
+
+// Combined scripture + Catechism suggestion panel.
 function ScriptureSeedSuggestion({
   suggestion,
   catechism
@@ -2830,6 +2971,8 @@ function ScriptureSeedSuggestion({
     className: "mt-1 text-[13px] leading-relaxed text-emerald-700 dark:text-emerald-200/80"
   }, catechism.summary) : null) : null);
 }
+
+// Reusable +/- row for boolean counts like victories or lapses.
 function CounterRow({
   label,
   value,
@@ -2857,6 +3000,8 @@ function CounterRow({
     onClick: () => onChange(value + 10)
   }, "+10")));
 }
+
+// Spinner control for numeric values.
 function StepperRow({
   label,
   value,
@@ -2878,6 +3023,8 @@ function StepperRow({
     onClick: () => onChange(Math.min(max, value + 1))
   }, "+")));
 }
+
+// Specialized stepper for tracking timed practices.
 function TimerRow({
   label,
   minutes,
@@ -2917,6 +3064,8 @@ function TimerRow({
     className: "w-24 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 px-2 py-1 outline-none"
   })));
 }
+
+// Breath prayer countdown widget triggered from the session modal.
 function MeditationTimer({
   onFinish
 }) {
@@ -2983,6 +3132,8 @@ function MeditationTimer({
     className: "text-xs text-zinc-500 text-center"
   }, "Tip: Use the timer during breath prayer. On finish, minutes are added to today\u2019s total."));
 }
+
+// Full-screen modal guiding the user through a short prayer session.
 function PrayerSessionModal({
   open,
   onClose,
@@ -3033,6 +3184,8 @@ function PrayerSessionModal({
     }
   }))));
 }
+
+// Compact editor for the urges/victories/lapses section.
 function TemptationBox({
   temptations,
   onUpdate
@@ -3070,6 +3223,8 @@ function TemptationBox({
     className: "text-xs text-zinc-500"
   }, "Note urges gently; celebrate victories; bring lapses to Confession with hope."));
 }
+
+// Renders inputs for user-defined metrics on the daily log.
 function CustomMetricInputs({
   day,
   onUpdateDay,
@@ -3096,6 +3251,8 @@ function CustomMetricInputs({
     className: "text-xs text-zinc-500"
   }, "Track anything else meaningful to your rhythm\u2014minutes of silence, chapters read, or visits with a friend."));
 }
+
+// Input field for a single custom metric entry.
 function CustomMetricField({
   metric,
   value,
@@ -3117,6 +3274,8 @@ function CustomMetricField({
     className: "w-24 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 px-2 py-1 text-right tabular-nums"
   }));
 }
+
+// Emoji-enhanced mood selector.
 function MoodSelector({
   value,
   onChange
@@ -3139,6 +3298,8 @@ function MoodSelector({
     }, option.emoji), option.label);
   })));
 }
+
+// Pills-based tag editor with suggestions.
 function TagSelector({
   tags,
   onChange
@@ -3193,6 +3354,8 @@ function TagSelector({
     className: "chip hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200"
   }, "#", suggestion))));
 }
+
+// Displays a random prompt to seed journaling or prayer reflection.
 function GuidedPrompt({
   title,
   prompts
@@ -3219,6 +3382,8 @@ function GuidedPrompt({
     className: "mt-1 leading-relaxed"
   }, prompt));
 }
+
+// Allows the user to configure reminder times and opt into browser notifications.
 function ReminderPlanner({
   reminders,
   updatePreferences,
@@ -3279,6 +3444,8 @@ function ReminderPlanner({
     className: "text-emerald-600"
   }, "Granted") : null));
 }
+
+// Floating stack of in-app notifications.
 function NotificationCenter({
   notifications,
   onDismiss,
@@ -3321,6 +3488,8 @@ function NotificationCenter({
     }, action.label))) : null);
   }));
 }
+
+// Temporary banner for celebratory affirmations.
 function AffirmationBanner({
   message,
   onDismiss
@@ -3343,6 +3512,8 @@ function AffirmationBanner({
     onClick: onDismiss
   }, "Dismiss") : null));
 }
+
+// Inline callout that appears when a reminder becomes due.
 function ReminderBanner({
   reminder,
   onComplete,
@@ -3373,6 +3544,8 @@ function ReminderBanner({
     onClick: () => onSnooze(reminder.id)
   }, "Snooze 10m")))));
 }
+
+// Carousel tile with rotating practice suggestions.
 function PracticeSpotlight({
   spotlight,
   onNext
@@ -3395,6 +3568,8 @@ function PracticeSpotlight({
     onClick: onNext
   }, "Another")));
 }
+
+// Simple multi-step intro shown until the user dismisses it.
 function OnboardingDialog({
   onComplete
 }) {
@@ -3478,6 +3653,8 @@ function OnboardingDialog({
     }
   }, step + 1 >= totalSteps ? "Let’s begin" : "Next")))));
 }
+
+// Text area for jotting down a simple plan for the next day.
 function PlanTomorrow({
   plan,
   onChange
@@ -3495,6 +3672,8 @@ function PlanTomorrow({
     className: "text-xs text-zinc-500"
   }, "Tomorrow\u2019s intention appears here for quick review when you begin the day."));
 }
+
+// Compact counter used inside the temptation card.
 function SmallCounter({
   label,
   value,
@@ -3516,6 +3695,8 @@ function SmallCounter({
     onClick: () => onChange(Math.max(0, value + 1))
   }, "+")));
 }
+
+// Handles weekly practice checkboxes and ensures they persist to the correct day.
 function WeeklyAnchors({
   date,
   setData,
@@ -3565,6 +3746,8 @@ function WeeklyAnchors({
     className: "text-xs text-zinc-500"
   }, "Applies to Sun\u2013Sat of the selected week."));
 }
+
+// Header bar with date navigation and streak stats.
 function TopNav({
   date,
   setDate,
@@ -3597,6 +3780,8 @@ function TopNav({
     current: date
   }));
 }
+
+// Extremely small calendar heatmap used in the top navigation.
 function MiniMonth({
   dots,
   onPick,
@@ -3638,6 +3823,8 @@ function MiniMonth({
     className: "mt-1 text-[10px] text-zinc-500"
   }, "Filled = any practice done that day"));
 }
+
+// Buttons for exporting/importing backups.
 function BackupControls({
   onExportJSON,
   onExportCSV,
@@ -3661,6 +3848,8 @@ function BackupControls({
     className: "text-xs text-zinc-500"
   }, "Back up locally. Files stay on your device."));
 }
+
+// Interface for creating and reordering custom analytics metrics.
 function CustomMetricManager({
   customMetrics,
   updatePreferences
@@ -3749,6 +3938,8 @@ function CustomMetricManager({
     className: "text-[11px] text-zinc-500"
   }, "You can add ", remaining, " more.")) : null);
 }
+
+// Converts the stored day map into daily/weekly datapoints for the metrics UI.
 function buildMetricSeries(data, metricKey, metricOptions = BASE_METRIC_OPTIONS) {
   const metric = metricOptions.find(option => option.value === metricKey);
   if (!metric) return {
@@ -3808,6 +3999,8 @@ function buildMetricSeries(data, metricKey, metricOptions = BASE_METRIC_OPTIONS)
     weekly
   };
 }
+
+// Returns the last value plus a rolling average to show recent trends.
 function computeMetricSummary(series, view) {
   const points = view === "weekly" ? series.weekly : series.daily;
   const defaultLabel = view === "weekly" ? "4-week avg" : "7-day avg";
@@ -3829,6 +4022,8 @@ function computeMetricSummary(series, view) {
     averageLabel
   };
 }
+
+// Streak helper applied to the chart points for highlight callouts.
 function computeMetricStreak(points) {
   let current = 0;
   let longest = 0;
@@ -3855,6 +4050,8 @@ function computeMetricStreak(points) {
     longest
   };
 }
+
+// Derives totals, maximums, and streak information for the selected metric.
 function computeMetricHighlights(series, metricConfig, view) {
   const points = view === "weekly" ? series.weekly : series.daily;
   if (!points.length) {
@@ -3882,6 +4079,8 @@ function computeMetricHighlights(series, metricConfig, view) {
     unit: metricConfig.unit
   };
 }
+
+// Returns the ISO string for the Sunday that begins the given week.
 function weekStartISO(dateISO) {
   const date = new Date(dateISO);
   if (Number.isNaN(date.getTime())) return dateISO;
@@ -3889,16 +4088,22 @@ function weekStartISO(dateISO) {
   date.setDate(date.getDate() - diff);
   return ymd(date);
 }
+
+// Adds the specified number of days to an ISO date string.
 function addDaysISO(dateISO, days) {
   const date = new Date(dateISO);
   if (Number.isNaN(date.getTime())) return dateISO;
   date.setDate(date.getDate() + days);
   return ymd(date);
 }
+
+// True if the day contains any logged prayer activity.
 function anyPracticeDone(day) {
   if (!day) return false;
   return day.morning.consecration || day.morning.angelus || day.morning.benedictus || day.morning.breathMinutes > 0 || day.morning.jesusPrayerCount > 0 || day.midday.stillness || day.midday.angelus || day.midday.bodyBlessing || day.evening.examen || day.evening.rosaryDecades > 0 || day.evening.angelus || day.evening.magnificat || day.evening.actOfContrition || day.evening.gratitudePrayer;
 }
+
+// Counts the number of consecutive recent days with any practice logged.
 function calcStreak(data) {
   let d = new Date();
   let count = 0;
@@ -3910,6 +4115,8 @@ function calcStreak(data) {
   }
   return count;
 }
+
+// Finds the longest run of consecutive practice days in the dataset.
 function calcLongestStreak(data) {
   const dates = Object.keys(data).sort();
   let longest = 0;
@@ -3935,6 +4142,8 @@ function calcLongestStreak(data) {
   }
   return longest;
 }
+
+// Aggregate totals used by the stats cards.
 function calcTotals(data) {
   return Object.values(data).reduce((acc, d) => {
     const morning = d.morning ?? {};
@@ -3996,6 +4205,8 @@ function calcTotals(data) {
     weeklyDirection: 0
   });
 }
+
+// Totals for user-defined custom metrics.
 function calcCustomTotals(data, customMetrics = []) {
   if (!customMetrics.length) return [];
   const summary = customMetrics.map(metric => ({
@@ -4018,6 +4229,8 @@ function calcCustomTotals(data, customMetrics = []) {
   });
   return summary;
 }
+
+// Tallies how often each context tag appears across all days.
 function summarizeTags(data) {
   const counts = new Map();
   Object.values(data).forEach(day => {
@@ -4047,6 +4260,8 @@ function summarizeMood(data) {
     latest
   };
 }
+
+// Summarizes the surrounding week for the dashboard sidebar.
 function calcWeekSummary(data, dateISO) {
   const target = new Date(dateISO);
   if (Number.isNaN(target.getTime())) {
@@ -4097,6 +4312,8 @@ function calcWeekSummary(data, dateISO) {
     totalAnchors: WEEKLY_ANCHOR_KEYS.length
   };
 }
+
+// Helper that returns the Date objects representing the current week.
 function weekRange(d) {
   const day = d.getDay();
   const start = new Date(d);
@@ -4109,11 +4326,15 @@ function weekRange(d) {
   }
   return arr;
 }
+
+// Shift an ISO date string forward/backward by `delta` days.
 function prevDay(dateISO, delta) {
   const d = new Date(dateISO);
   d.setDate(d.getDate() + delta);
   return ymd(d);
 }
+
+// Precomputes the grid of dots used by the mini calendar component.
 function monthDots(dateISO, data) {
   const d = new Date(dateISO);
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
@@ -4134,6 +4355,8 @@ function monthDots(dateISO, data) {
   }
   return arr;
 }
+
+// Generates the CSV export for the tracker data, including custom metrics.
 function toCSV(data, customMetrics = []) {
   const header = ["Date", "Scripture", "Notes", "Consecration", "MorningAngelus", "MorningBenedictus", "BreathMinutes", "JesusPrayerCount", "Stillness", "MiddayAngelus", "BodyBlessing", "Examen", "EveningAngelus", "EveningMagnificat", "RosaryDecades", "ActOfContrition", "GratitudePrayer", "UrgesNoted", "Victories", "Lapses", "Mass", "Adoration", "Confession", "Fasting", "Accountability", "Mood", "Tags"];
   customMetrics.forEach(metric => header.push(metric.name || metric.id));
@@ -4150,7 +4373,11 @@ function toCSV(data, customMetrics = []) {
   }
   return rows.join("\n");
 }
+
+// Escapes values so Excel/Sheets consume the CSV reliably.
 const csvQuote = s => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+
+// Hydrates the application into the static HTML shell.
 function AppRoot() {
   return /*#__PURE__*/React.createElement(App, null);
 }
