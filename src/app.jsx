@@ -15,6 +15,7 @@ const PREFS_KEY = "zc_preferences_v1";
 const REMINDER_STATE_KEY = "zc_reminder_state_v1";
 const JSON_EXPORT_VERSION = 2;
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 
 const randomId = () => Math.random().toString(36).slice(2, 10);
 
@@ -1685,6 +1686,7 @@ function App() {
   const [affirmation, setAffirmation] = useState("");
   const timerCardRef = useRef(null);
   const [notifications, setNotifications] = useState([]);
+  const backupFileInputRef = useRef(null);
 
   const dismissNotification = useCallback((id) => {
     setNotifications((prev) => prev.filter((note) => note.id !== id));
@@ -1724,6 +1726,113 @@ function App() {
   );
 
   const historyLimit = 10;
+
+  const exportBackupJSON = useCallback(() => {
+    const payload = createBackupPayload(data, preferences);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `zc-tracker-export-${todayISO()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [data, preferences]);
+
+  const exportBackupCSV = useCallback(() => {
+    const rows = toCSV(data, sanitizeCustomMetrics(preferences.customMetrics));
+    const blob = new Blob([rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `zc-tracker-export-${todayISO()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [data, preferences]);
+
+  const importBackupJSON = useCallback(
+    (file) =>
+      new Promise((resolve) => {
+        if (!file) {
+          resolve();
+          return;
+        }
+        if (file.size > MAX_IMPORT_BYTES) {
+          notify?.({ type: "error", message: "Import failed: File is larger than 2 MB." });
+          resolve();
+          return;
+        }
+        const nameLooksJSON = /\.json$/i.test(file.name || "");
+        const typeIsJSON = !file.type || file.type === "application/json";
+        if (!nameLooksJSON && !typeIsJSON) {
+          notify?.({ type: "error", message: "Import failed: Please select a JSON backup file." });
+          resolve();
+          return;
+        }
+        const reader = new FileReader();
+        reader.onerror = () => {
+          notify?.({ type: "error", message: "Import failed: Unable to read file." });
+          resolve();
+        };
+        reader.onload = () => {
+          try {
+            const obj = JSON.parse(String(reader.result));
+            const result = processImportedBackup(obj, data);
+            const newEntries = Math.max(result.stats.importedCount - result.stats.overwrittenCount, 0);
+            if (result.stats.importedCount > 0) {
+              setData(result.data);
+            }
+            if (result.preferences) {
+              updatePreferences(result.preferences);
+            }
+
+            const summary = [];
+            if (newEntries > 0) {
+              summary.push(`${newEntries} new day${newEntries === 1 ? "" : "s"}`);
+            }
+            if (result.stats.overwrittenCount > 0) {
+              summary.push(`${result.stats.overwrittenCount} updated`);
+            }
+            if (result.preferences) {
+              summary.push("preferences synced");
+            }
+            const summaryText = summary.length ? summary.join(", ") : "no changes detected";
+            const warningCount = result.warnings.length;
+            const baseMessage = `Import ${warningCount ? "completed with warnings" : "successful"} (${summaryText}).`;
+            const warningMessage = warningCount ? ` ${result.warnings[0]}` : "";
+            if (warningCount > 1) {
+              console.warn("Import warnings:", result.warnings);
+            }
+            notify?.({
+              type: warningCount ? "warning" : "success",
+              message: `${baseMessage}${warningMessage}`,
+            });
+          } catch (e) {
+            notify?.({ type: "error", message: `Import failed: ${e.message}` });
+          } finally {
+            resolve();
+          }
+        };
+        reader.readAsText(file);
+      }),
+    [data, notify, setData, updatePreferences],
+  );
+
+  const handleBackupFileChange = useCallback(
+    (event) => {
+      const input = event.target;
+      const file = input.files?.[0];
+      importBackupJSON(file).finally(() => {
+        input.value = "";
+      });
+    },
+    [importBackupJSON],
+  );
+
+  const triggerBackupImport = useCallback(() => {
+    if (backupFileInputRef.current) {
+      backupFileInputRef.current.click();
+    }
+  }, [backupFileInputRef]);
 
   useEffect(() => {
     if (!metricOptions.some((option) => option.value === selectedMetric)) {
@@ -2032,6 +2141,31 @@ function App() {
               </div>
               <div className="ml-auto flex flex-col gap-2 text-sm text-zinc-500 dark:text-zinc-400 sm:items-center sm:justify-end">
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  <input
+                    ref={backupFileInputRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={handleBackupFileChange}
+                  />
+                  <button
+                    className="btn"
+                    onClick={exportBackupJSON}
+                    type="button"
+                    title="Download backup (JSON)"
+                    aria-label="Download backup as JSON"
+                  >
+                    <i className="fa-solid fa-download" aria-hidden="true" />
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={triggerBackupImport}
+                    type="button"
+                    title="Upload backup (JSON)"
+                    aria-label="Upload backup from JSON"
+                  >
+                    <i className="fa-solid fa-upload" aria-hidden="true" />
+                  </button>
                   <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
                     {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
                   </button>
@@ -2626,11 +2760,9 @@ function App() {
         <div className="grid gap-6 md:grid-cols-2">
           <Card title="Backup / Restore">
             <BackupControls
-              data={data}
-              setData={setData}
-              preferences={preferences}
-              updatePreferences={updatePreferences}
-              notify={notify}
+              onExportJSON={exportBackupJSON}
+              onExportCSV={exportBackupCSV}
+              onImport={triggerBackupImport}
             />
           </Card>
 
@@ -4074,127 +4206,19 @@ function MiniMonth({ dots, onPick, current }) {
   );
 }
 
-const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
-
-function BackupControls({ data, setData, preferences, updatePreferences, notify }) {
-  const fileInputRef = useRef(null);
-
-  const exportJSON = useCallback(() => {
-    const payload = createBackupPayload(data, preferences);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `zc-tracker-export-${todayISO()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [data, preferences]);
-
-  const exportCSV = useCallback(() => {
-    const rows = toCSV(data, sanitizeCustomMetrics(preferences.customMetrics));
-    const blob = new Blob([rows], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `zc-tracker-export-${todayISO()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [data, preferences.customMetrics]);
-
-  const importJSON = useCallback(
-    (file) => {
-      if (!file) return;
-      if (file.size > MAX_IMPORT_BYTES) {
-        notify?.({ type: "error", message: "Import failed: File is larger than 2 MB." });
-        return;
-      }
-      const nameLooksJSON = /\.json$/i.test(file.name || "");
-      const typeIsJSON = !file.type || file.type === "application/json";
-      if (!nameLooksJSON && !typeIsJSON) {
-        notify?.({ type: "error", message: "Import failed: Please select a JSON backup file." });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onerror = () => {
-        notify?.({ type: "error", message: "Import failed: Unable to read file." });
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      };
-      reader.onload = () => {
-        try {
-          const obj = JSON.parse(String(reader.result));
-          const result = processImportedBackup(obj, data);
-          const newEntries = Math.max(result.stats.importedCount - result.stats.overwrittenCount, 0);
-          if (result.stats.importedCount > 0) {
-            setData(result.data);
-          }
-          if (result.preferences) {
-            updatePreferences(result.preferences);
-          }
-
-          const summary = [];
-          if (newEntries > 0) {
-            summary.push(`${newEntries} new day${newEntries === 1 ? "" : "s"}`);
-          }
-          if (result.stats.overwrittenCount > 0) {
-            summary.push(`${result.stats.overwrittenCount} updated`);
-          }
-          if (result.preferences) {
-            summary.push("preferences synced");
-          }
-          const summaryText = summary.length ? summary.join(", ") : "no changes detected";
-          const warningCount = result.warnings.length;
-          const baseMessage = `Import ${warningCount ? "completed with warnings" : "successful"} (${summaryText}).`;
-          const warningMessage = warningCount ? ` ${result.warnings[0]}` : "";
-          if (warningCount > 1) {
-            console.warn("Import warnings:", result.warnings);
-          }
-          notify?.({
-            type: warningCount ? "warning" : "success",
-            message: `${baseMessage}${warningMessage}`,
-          });
-        } catch (e) {
-          notify?.({ type: "error", message: `Import failed: ${e.message}` });
-        } finally {
-          if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-      };
-      reader.readAsText(file);
-    },
-    [data, notify, setData, updatePreferences],
-  );
-
-  const handleFileChange = useCallback(
-    (event) => {
-      const file = event.target.files?.[0];
-      if (file) {
-        importJSON(file);
-      } else if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    },
-    [importJSON],
-  );
-
+function BackupControls({ onExportJSON, onExportCSV, onImport }) {
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-2">
-        <button className="btn" onClick={exportJSON}>
+        <button className="btn" onClick={onExportJSON}>
           Export JSON
         </button>
-        <button className="btn" onClick={exportCSV}>
+        <button className="btn" onClick={onExportCSV}>
           Export CSV
         </button>
-        <label className="btn cursor-pointer">
+        <button className="btn" onClick={onImport} type="button">
           Import JSON
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-        </label>
+        </button>
       </div>
       <p className="text-xs text-zinc-500">Back up locally. Files stay on your device.</p>
     </div>
