@@ -2149,25 +2149,34 @@ function App() {
                     onChange={handleBackupFileChange}
                   />
                   <button
-                    className="btn"
+                    className="btn btn-action"
                     onClick={exportBackupJSON}
                     type="button"
                     title="Download backup (JSON)"
-                    aria-label="Download backup as JSON"
                   >
                     <i className="fa-solid fa-download" aria-hidden="true" />
+                    <span>Export</span>
                   </button>
                   <button
-                    className="btn"
+                    className="btn btn-action"
                     onClick={triggerBackupImport}
                     type="button"
                     title="Upload backup (JSON)"
-                    aria-label="Upload backup from JSON"
                   >
                     <i className="fa-solid fa-upload" aria-hidden="true" />
+                    <span>Restore</span>
                   </button>
-                  <button className="btn" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
-                    {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+                  <button
+                    className="btn btn-action"
+                    type="button"
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    title="Toggle theme"
+                  >
+                    <i
+                      className={`fa-solid ${theme === "dark" ? "fa-sun" : "fa-moon"}`}
+                      aria-hidden="true"
+                    />
+                    <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
                   </button>
                 </div>
               </div>
@@ -3254,7 +3263,7 @@ function Card({ title, children, className = "", contentClassName = "", accent }
   return (
     <section className={`glass-card ${accentClass} ${className}`}>
       <h2 className="card-title">{title}</h2>
-      <div className={`grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 ${contentClassName}`}>
+      <div className={`grid gap-3 text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-300 ${contentClassName}`}>
         {children}
       </div>
     </section>
@@ -3511,13 +3520,13 @@ function MeditationTimer({ onFinish }) {
         </span>
       </div>
       <div className="flex gap-2">
-        <button className="btn" onClick={handleToggle}>
+        <button className="btn btn-primary" onClick={handleToggle}>
           {running ? "Pause" : seconds ? "Resume" : "Start"}
         </button>
         <button className="btn" onClick={reset} disabled={running}>
           Reset
         </button>
-        <button className="btn" onClick={finish} disabled={running || seconds === 0}>
+        <button className="btn btn-primary" onClick={finish} disabled={running || seconds === 0}>
           Finish & Log
         </button>
       </div>
