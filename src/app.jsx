@@ -227,7 +227,10 @@ function maybeWrapDriveInitError(error) {
     return friendly;
   };
 
-  if (Number.isFinite(code) && code === 502) {
+  if (
+    lowerMessage.includes("api discovery response missing required fields") ||
+    (Number.isFinite(code) && code === 502)
+  ) {
     const wildcardSuggestion =
       typeof window !== "undefined" && window.location ? `${window.location.origin}/*` : "your site";
     return buildWrappedError(
