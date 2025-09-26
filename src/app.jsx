@@ -234,7 +234,7 @@ function maybeWrapDriveInitError(error) {
     const wildcardSuggestion =
       typeof window !== "undefined" && window.location ? `${window.location.origin}/*` : "your site";
     return buildWrappedError(
-      `Google returned HTTP 502 while loading the Drive discovery document. This almost always means the API key's HTTP referrer restrictions don't cover ${currentLocation} or the change hasn't fully propagated. Update the restriction to include this URL (for example, ${wildcardSuggestion}) or temporarily remove it, then try again.`,
+      `Google returned HTTP 502 while loading the Drive discovery document. This usually means the API key's HTTP referrer restrictions don't cover ${currentLocation} or the change hasn't fully propagated, but it can also happen if Google's discovery service is temporarily unavailable. Confirm the restriction includes this URL (for example, ${wildcardSuggestion}) and, if it already does, wait a minute before trying again.`,
       "drive_discovery_referrer_mismatch",
     );
   }
