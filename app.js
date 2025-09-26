@@ -396,6 +396,21 @@ function loadGoogleIdentityScript() {
   });
   return window.__googleIdentityScriptPromise;
 }
+function isDriveDiscoveryDocError(error) {
+  if (!error) return false;
+  const normalized = extractGoogleApiErrorDetails(error);
+  const message = String(normalized?.message || error?.message || "").toLowerCase();
+  if (!message && !normalized) return false;
+  if (message.includes("api discovery response missing required fields")) {
+    return true;
+  }
+  const status = normalized?.status ?? error?.status ?? null;
+  const code = normalized?.code ?? error?.code ?? null;
+  if (Number(status) === 502 || Number(code) === 502) {
+    return true;
+  }
+  return false;
+}
 async function initGoogleClient(config) {
   const [gapi] = await Promise.all([loadGoogleApiScript(), loadGoogleIdentityScript()]);
   if (!gapi) throw new Error("Google API unavailable");
@@ -408,7 +423,19 @@ async function initGoogleClient(config) {
         });
         resolve();
       } catch (error) {
-        reject(error);
+        if (!isDriveDiscoveryDocError(error)) {
+          reject(error);
+          return;
+        }
+        try {
+          await gapi.client.init({
+            apiKey: config.apiKey
+          });
+          await gapi.client.load("drive", "v3", undefined, "https://www.googleapis.com/");
+          resolve();
+        } catch (fallbackError) {
+          reject(fallbackError);
+        }
       }
     });
   });
