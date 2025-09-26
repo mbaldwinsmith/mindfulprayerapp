@@ -149,7 +149,7 @@ const DRIVE_DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/driv
 const DRIVE_FILE_NAME = "regula-sync.json";
 const DRIVE_MIME_TYPE = "application/json";
 const DRIVE_SYNC_DEBOUNCE_MS = 2000;
-const DRIVE_DISABLED_MESSAGE = "Google Drive sync is disabled for this Regula site. Your data will stay on this device until an administrator enables the Drive API.";
+const DRIVE_DISABLED_MESSAGE = "Google Drive sync isn't available on this Regula site. This static installation only uses Google OAuth without the Drive API, so your data will stay on this device.";
 function extractGoogleApiErrorDetails(error) {
   if (!error) return null;
   const resultError = error?.result?.error;
@@ -175,7 +175,7 @@ function maybeWrapDriveApiDisabledError(error) {
   const normalizedMessage = String(details.message || "").toLowerCase();
   const hasDisabledReason = (details.reasons || []).some(reason => ["accessnotconfigured", "servicedisabled", "apihasnotbeenused"].includes(reason));
   if (code === 403 && (hasDisabledReason || normalizedMessage.includes("google drive api has not been used") || normalizedMessage.includes("enable it by visiting"))) {
-    const friendly = new Error("Google Drive sync isn't available because the Google Drive API is disabled for this Regula installation. Ask the site administrator to enable the Drive API for the connected Google Cloud project, then try again.");
+    const friendly = new Error(DRIVE_DISABLED_MESSAGE);
     friendly.code = "drive_api_disabled";
     friendly.cause = error;
     friendly.details = details;
@@ -2290,7 +2290,7 @@ function App() {
     disabled: !driveSync.signedIn || driveSync.status !== "ready" || driveSync.syncing
   }, driveSync.syncing ? "Syncing…" : "Sync now")) : /*#__PURE__*/React.createElement("span", {
     className: "hidden text-xs sm:inline"
-  }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? "Drive sync disabled by administrator" : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
+  }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? DRIVE_DISABLED_MESSAGE : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
