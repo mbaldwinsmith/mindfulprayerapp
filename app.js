@@ -149,6 +149,55 @@ const DRIVE_DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/driv
 const DRIVE_FILE_NAME = "regula-sync.json";
 const DRIVE_MIME_TYPE = "application/json";
 const DRIVE_SYNC_DEBOUNCE_MS = 2000;
+const DRIVE_DISABLED_MESSAGE = "Google Drive sync is disabled for this Regula site. Your data will stay on this device until an administrator enables the Drive API.";
+function extractGoogleApiErrorDetails(error) {
+  if (!error) return null;
+  const resultError = error?.result?.error;
+  const details = Array.isArray(resultError?.details) ? resultError.details : [];
+  const nestedReasons = details.map(detail => detail?.reason || detail?.metadata?.reason).filter(Boolean).map(reason => String(reason).toLowerCase());
+  const legacyErrors = Array.isArray(resultError?.errors) ? resultError.errors : [];
+  const legacyReasons = legacyErrors.map(item => item?.reason).filter(Boolean).map(reason => String(reason).toLowerCase());
+  const reasons = [...legacyReasons, ...nestedReasons];
+  const message = resultError?.message || error?.message || error?.statusText || (typeof error === "string" ? error : "");
+  const code = resultError?.code ?? error?.code ?? error?.status ?? null;
+  const status = resultError?.status ?? error?.status ?? null;
+  return {
+    code,
+    status,
+    message,
+    reasons
+  };
+}
+function maybeWrapDriveApiDisabledError(error) {
+  const details = extractGoogleApiErrorDetails(error);
+  if (!details) return null;
+  const code = Number(details.code);
+  const normalizedMessage = String(details.message || "").toLowerCase();
+  const hasDisabledReason = (details.reasons || []).some(reason => ["accessnotconfigured", "servicedisabled", "apihasnotbeenused"].includes(reason));
+  if (code === 403 && (hasDisabledReason || normalizedMessage.includes("google drive api has not been used") || normalizedMessage.includes("enable it by visiting"))) {
+    const friendly = new Error("Google Drive sync isn't available because the Google Drive API is disabled for this Regula installation. Ask the site administrator to enable the Drive API for the connected Google Cloud project, then try again.");
+    friendly.code = "drive_api_disabled";
+    friendly.cause = error;
+    friendly.details = details;
+    return friendly;
+  }
+  return null;
+}
+function normalizeDriveApiError(error) {
+  const wrapped = maybeWrapDriveApiDisabledError(error);
+  if (wrapped) return wrapped;
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error);
+  const fallback = new Error(error?.message || error?.statusText || "Drive request failed");
+  fallback.cause = error;
+  return fallback;
+}
+function buildDriveErrorNotificationMessage(error, prefix) {
+  if (!error) return prefix;
+  if (error.code === "drive_api_disabled") return error.message;
+  const detail = error?.message || String(error);
+  return `${prefix}: ${detail}`;
+}
 function stableStringify(value) {
   const seen = new WeakSet();
   const walk = input => {
@@ -1191,7 +1240,8 @@ function useDriveSync({
     signedIn: false,
     syncing: false,
     lastSync: null,
-    error: null
+    error: null,
+    disabledReason: config ? null : "not_configured"
   }));
   const driveState = driveStateRaw;
   const isMountedRef = useRef(true);
@@ -1218,6 +1268,43 @@ function useDriveSync({
       return next;
     });
   }, []);
+  const clearDriveSessionRefs = useCallback(() => {
+    accessTokenRef.current = null;
+    if (gapiRef.current) {
+      try {
+        gapiRef.current.client.setToken(null);
+      } catch (error) {
+        console.warn("Failed to clear Google API token", error);
+      }
+    }
+    fileIdRef.current = null;
+    lastSyncedHashRef.current = null;
+    pendingInitialFetchRef.current = false;
+    if (pendingSyncTimeoutRef.current) {
+      window.clearTimeout(pendingSyncTimeoutRef.current);
+      pendingSyncTimeoutRef.current = null;
+    }
+  }, []);
+  const handleDriveDisabled = useCallback(({
+    silent = false
+  } = {}) => {
+    clearDriveSessionRefs();
+    setDriveState(prev => ({
+      ...prev,
+      signedIn: false,
+      syncing: false,
+      status: "disabled",
+      error: null,
+      disabledReason: "drive_api_disabled"
+    }));
+    if (!silent) {
+      notify?.({
+        type: "warning",
+        message: DRIVE_DISABLED_MESSAGE,
+        autoCloseMs: 8000
+      });
+    }
+  }, [clearDriveSessionRefs, notify, setDriveState]);
   const ensureFileId = useCallback(async () => {
     if (!config) throw new Error("Google Drive sync is not configured");
     if (fileIdRef.current) return fileIdRef.current;
@@ -1225,68 +1312,80 @@ function useDriveSync({
     if (!gapi) throw new Error("Google API not ready");
     const fileName = config.fileName || DRIVE_FILE_NAME;
     const escaped = fileName.replace(/'/g, "\\'");
-    const listResponse = await gapi.client.drive.files.list({
-      spaces: "appDataFolder",
-      fields: "files(id,name,modifiedTime)",
-      pageSize: 1,
-      q: `name='${escaped}' and trashed = false`
-    });
-    const files = listResponse.result && listResponse.result.files || [];
-    if (files.length > 0 && files[0]?.id) {
-      fileIdRef.current = files[0].id;
-      return fileIdRef.current;
-    }
-    const createResponse = await gapi.client.drive.files.create({
-      fields: "id",
-      resource: {
-        name: fileName,
-        parents: ["appDataFolder"],
-        mimeType: DRIVE_MIME_TYPE
-      },
-      media: {
-        mimeType: DRIVE_MIME_TYPE,
-        body: JSON.stringify({
-          version: 1
-        })
+    try {
+      const listResponse = await gapi.client.drive.files.list({
+        spaces: "appDataFolder",
+        fields: "files(id,name,modifiedTime)",
+        pageSize: 1,
+        q: `name='${escaped}' and trashed = false`
+      });
+      const files = listResponse.result && listResponse.result.files || [];
+      if (files.length > 0 && files[0]?.id) {
+        fileIdRef.current = files[0].id;
+        return fileIdRef.current;
       }
-    });
-    const newId = createResponse.result?.id;
-    if (!newId) throw new Error("Failed to create Drive file");
-    fileIdRef.current = newId;
-    return newId;
+      const createResponse = await gapi.client.drive.files.create({
+        fields: "id",
+        resource: {
+          name: fileName,
+          parents: ["appDataFolder"],
+          mimeType: DRIVE_MIME_TYPE
+        },
+        media: {
+          mimeType: DRIVE_MIME_TYPE,
+          body: JSON.stringify({
+            version: 1
+          })
+        }
+      });
+      const newId = createResponse.result?.id;
+      if (!newId) throw new Error("Failed to create Drive file");
+      fileIdRef.current = newId;
+      return newId;
+    } catch (error) {
+      throw normalizeDriveApiError(error);
+    }
   }, [config]);
   const downloadSnapshot = useCallback(async () => {
     const gapi = gapiRef.current;
     if (!gapi) throw new Error("Google API not ready");
     const fileId = await ensureFileId();
-    const response = await gapi.client.drive.files.get({
-      fileId,
-      alt: "media"
-    });
-    const body = typeof response.body === "string" ? response.body : response.result ? JSON.stringify(response.result) : "";
-    if (!body) return null;
     try {
-      return JSON.parse(body);
+      const response = await gapi.client.drive.files.get({
+        fileId,
+        alt: "media"
+      });
+      const body = typeof response.body === "string" ? response.body : response.result ? JSON.stringify(response.result) : "";
+      if (!body) return null;
+      try {
+        return JSON.parse(body);
+      } catch (error) {
+        console.warn("Failed to parse Drive snapshot", error);
+        return null;
+      }
     } catch (error) {
-      console.warn("Failed to parse Drive snapshot", error);
-      return null;
+      throw normalizeDriveApiError(error);
     }
   }, [ensureFileId]);
   const uploadSnapshot = useCallback(async payload => {
     const gapi = gapiRef.current;
     if (!gapi) throw new Error("Google API not ready");
     const fileId = await ensureFileId();
-    await gapi.client.request({
-      path: `/upload/drive/v3/files/${encodeURIComponent(fileId)}`,
-      method: "PATCH",
-      params: {
-        uploadType: "media"
-      },
-      headers: {
-        "Content-Type": DRIVE_MIME_TYPE
-      },
-      body: JSON.stringify(payload)
-    });
+    try {
+      await gapi.client.request({
+        path: `/upload/drive/v3/files/${encodeURIComponent(fileId)}`,
+        method: "PATCH",
+        params: {
+          uploadType: "media"
+        },
+        headers: {
+          "Content-Type": DRIVE_MIME_TYPE
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (error) {
+      throw normalizeDriveApiError(error);
+    }
   }, [ensureFileId]);
   const applySnapshot = useCallback((snapshot, {
     silent
@@ -1347,21 +1446,32 @@ function useDriveSync({
       }));
       return snapshot;
     } catch (error) {
+      const normalizedError = normalizeDriveApiError(error);
+      if (normalizedError?.code === "drive_api_disabled") {
+        console.warn("Drive download skipped: Drive API disabled", error);
+        handleDriveDisabled({
+          silent
+        });
+        return null;
+      }
       console.error("Drive download failed", error);
+      if (normalizedError !== error) {
+        console.error("Drive download failed (normalized)", normalizedError);
+      }
       setDriveState(prev => ({
         ...prev,
         syncing: false,
-        error
+        error: normalizedError
       }));
       if (!silent) {
         notify?.({
           type: "error",
-          message: `Drive download failed: ${error?.message || error}`
+          message: buildDriveErrorNotificationMessage(normalizedError, "Drive download failed")
         });
       }
       return null;
     }
-  }, [applySnapshot, downloadSnapshot, notify, ready, setDriveState]);
+  }, [applySnapshot, downloadSnapshot, handleDriveDisabled, notify, ready, setDriveState]);
   const computePayload = useCallback(() => {
     const payload = {
       version: 1,
@@ -1400,18 +1510,13 @@ function useDriveSync({
     }
   }, [fetchAndApply, ready, setDriveState]);
   const handleSignedOut = useCallback(() => {
-    accessTokenRef.current = null;
-    if (gapiRef.current) {
-      gapiRef.current.client.setToken(null);
-    }
-    fileIdRef.current = null;
-    lastSyncedHashRef.current = null;
-    pendingInitialFetchRef.current = false;
+    clearDriveSessionRefs();
     setDriveState(prev => ({
       ...prev,
-      signedIn: false
+      signedIn: false,
+      disabledReason: null
     }));
-  }, [setDriveState]);
+  }, [clearDriveSessionRefs, setDriveState]);
   const isTokenAuthError = useCallback(error => {
     const code = error?.code || error?.error;
     if (!code) return false;
@@ -1471,6 +1576,20 @@ function useDriveSync({
       });
       return {
         ok: false
+      };
+    }
+    if (driveState.status === "disabled") {
+      if (!silent) {
+        const message = driveState.disabledReason === "drive_api_disabled" ? DRIVE_DISABLED_MESSAGE : "Google Drive sync is not available.";
+        notify?.({
+          type: "info",
+          message,
+          autoCloseMs: 8000
+        });
+      }
+      return {
+        ok: false,
+        disabled: true
       };
     }
     if (!driveState.signedIn) {
@@ -1551,24 +1670,39 @@ function useDriveSync({
         ok: true
       };
     } catch (error) {
+      const normalizedError = normalizeDriveApiError(error);
+      if (normalizedError?.code === "drive_api_disabled") {
+        console.warn("Drive upload skipped: Drive API disabled", error);
+        handleDriveDisabled({
+          silent
+        });
+        return {
+          ok: false,
+          error: normalizedError,
+          disabled: true
+        };
+      }
       console.error("Drive sync failed", error);
+      if (normalizedError !== error) {
+        console.error("Drive sync failed (normalized)", normalizedError);
+      }
       setDriveState(prev => ({
         ...prev,
         syncing: false,
-        error
+        error: normalizedError
       }));
       if (!silent) {
         notify?.({
           type: "error",
-          message: `Drive sync failed: ${error?.message || error}`
+          message: buildDriveErrorNotificationMessage(normalizedError, "Drive sync failed")
         });
       }
       return {
         ok: false,
-        error
+        error: normalizedError
       };
     }
-  }, [computePayload, config, driveState.signedIn, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState, uploadSnapshot]);
+  }, [computePayload, config, driveState.disabledReason, driveState.signedIn, driveState.status, handleDriveDisabled, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState, uploadSnapshot]);
   useEffect(() => {
     if (!config || typeof window === "undefined") return;
     let cancelled = false;
@@ -1659,6 +1793,21 @@ function useDriveSync({
     }
   }, [driveState.signedIn, fetchAndApply, ready]);
   const signIn = useCallback(async () => {
+    if (driveState.status === "disabled") {
+      if (driveState.disabledReason === "drive_api_disabled") {
+        notify?.({
+          type: "warning",
+          message: DRIVE_DISABLED_MESSAGE,
+          autoCloseMs: 8000
+        });
+      } else {
+        notify?.({
+          type: "warning",
+          message: "Google Drive sync is not available."
+        });
+      }
+      return false;
+    }
     if (!tokenClientRef.current) {
       notify?.({
         type: "warning",
@@ -1684,7 +1833,7 @@ function useDriveSync({
       }
       return false;
     }
-  }, [handleSignedIn, handleSignedOut, isTokenAuthError, notify, requestAccessToken]);
+  }, [driveState.disabledReason, driveState.status, handleSignedIn, handleSignedOut, isTokenAuthError, notify, requestAccessToken]);
   const signOut = useCallback(async () => {
     if (!tokenClientRef.current && !accessTokenRef.current) return false;
     try {
@@ -1710,7 +1859,7 @@ function useDriveSync({
   }, [handleSignedOut, notify]);
   return {
     ...driveState,
-    available: Boolean(config),
+    available: Boolean(config) && driveState.status !== "disabled",
     signIn,
     signOut,
     syncNow
@@ -2141,7 +2290,7 @@ function App() {
     disabled: !driveSync.signedIn || driveSync.status !== "ready" || driveSync.syncing
   }, driveSync.syncing ? "Syncing…" : "Sync now")) : /*#__PURE__*/React.createElement("span", {
     className: "hidden text-xs sm:inline"
-  }, "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
+  }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? "Drive sync disabled by administrator" : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
