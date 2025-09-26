@@ -182,8 +182,37 @@ function loadGoogleApiScript() {
   return window.__googleApiScriptPromise;
 }
 
+function loadGoogleIdentityScript() {
+  if (typeof window === "undefined") return Promise.reject(new Error("No window context"));
+  if (window.__googleIdentityScriptPromise) return window.__googleIdentityScriptPromise;
+  window.__googleIdentityScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-google-identity]");
+    if (existing) {
+      if (existing.getAttribute("data-loaded") === "true") {
+        resolve(window.google);
+        return;
+      }
+      existing.addEventListener("load", () => resolve(window.google));
+      existing.addEventListener("error", () => reject(new Error("Failed to load Google Identity Services script")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.setAttribute("data-google-identity", "true");
+    script.addEventListener("load", () => {
+      script.setAttribute("data-loaded", "true");
+      resolve(window.google);
+    });
+    script.addEventListener("error", () => reject(new Error("Failed to load Google Identity Services script")));
+    document.head.appendChild(script);
+  });
+  return window.__googleIdentityScriptPromise;
+}
+
 async function initGoogleClient(config) {
-  const gapi = await loadGoogleApiScript();
+  const [gapi] = await Promise.all([loadGoogleApiScript(), loadGoogleIdentityScript()]);
   if (!gapi) throw new Error("Google API unavailable");
   await new Promise((resolve, reject) => {
     gapi.load("client:auth2", async () => {
@@ -1656,7 +1685,8 @@ function useDriveSync({
   const driveState = driveStateRaw;
   const isMountedRef = useRef(true);
   const gapiRef = useRef(null);
-  const authRef = useRef(null);
+  const tokenClientRef = useRef(null);
+  const accessTokenRef = useRef(null);
   const fileIdRef = useRef(null);
   const pendingInitialFetchRef = useRef(false);
   const pendingSyncTimeoutRef = useRef(null);
@@ -1819,19 +1849,112 @@ function useDriveSync({
     return { payload, hash };
   }, [data, preferences, theme]);
 
+  const handleSignedIn = useCallback(async () => {
+    let shouldFetch = false;
+    setDriveState((prev) => {
+      if (prev.signedIn) return prev;
+      shouldFetch = true;
+      return { ...prev, signedIn: true };
+    });
+    if (!shouldFetch) return;
+    if (!ready) {
+      pendingInitialFetchRef.current = true;
+      return;
+    }
+    pendingInitialFetchRef.current = false;
+    try {
+      await fetchAndApply({ silent: true });
+    } catch (error) {
+      console.error("Initial Drive fetch failed", error);
+    }
+  }, [fetchAndApply, ready, setDriveState]);
+
+  const handleSignedOut = useCallback(() => {
+    accessTokenRef.current = null;
+    if (gapiRef.current) {
+      gapiRef.current.client.setToken(null);
+    }
+    fileIdRef.current = null;
+    lastSyncedHashRef.current = null;
+    pendingInitialFetchRef.current = false;
+    setDriveState((prev) => ({ ...prev, signedIn: false }));
+  }, [setDriveState]);
+
+  const isTokenAuthError = useCallback((error) => {
+    const code = error?.code || error?.error;
+    if (!code) return false;
+    const normalized = String(code).toLowerCase();
+    return ["interaction_required", "access_denied", "invalid_grant", "unauthorized_client"].includes(normalized);
+  }, []);
+
+  const requestAccessToken = useCallback(
+    ({ prompt = "none", silent = false } = {}) =>
+      new Promise((resolve, reject) => {
+        const tokenClient = tokenClientRef.current;
+        if (!tokenClient) {
+          reject(new Error("Google Identity Services client not initialized"));
+          return;
+        }
+        tokenClient.callback = (tokenResponse) => {
+          if (!tokenResponse) {
+            reject(new Error("No response from Google Identity Services"));
+            return;
+          }
+          if (tokenResponse.error) {
+            const err = new Error(tokenResponse.error_description || tokenResponse.error);
+            err.code = tokenResponse.error;
+            reject(err);
+            return;
+          }
+          if (!tokenResponse.access_token) {
+            reject(new Error("Failed to obtain access token"));
+            return;
+          }
+          accessTokenRef.current = tokenResponse.access_token;
+          if (gapiRef.current) {
+            gapiRef.current.client.setToken({ access_token: tokenResponse.access_token });
+          }
+          resolve(tokenResponse.access_token);
+        };
+        try {
+          tokenClient.requestAccessToken({ prompt });
+        } catch (error) {
+          if (!silent && error?.message) {
+            console.error("Google Identity request failed", error);
+          }
+          reject(error);
+        }
+      }),
+    [],
+  );
+
   const syncNow = useCallback(
     async ({ silent = false } = {}) => {
       if (!config) {
         if (!silent) notify?.({ type: "warning", message: "Google Drive sync is not configured." });
         return { ok: false };
       }
-      if (!authRef.current || !authRef.current.isSignedIn.get()) {
+      if (!driveState.signedIn) {
         if (!silent) notify?.({ type: "warning", message: "Connect Google Drive to sync data." });
         return { ok: false };
       }
       if (!ready) {
         if (!silent) notify?.({ type: "info", message: "Data is still loading. Please try again shortly." });
         return { ok: false };
+      }
+      try {
+        await requestAccessToken({ prompt: "none", silent: true });
+      } catch (error) {
+        if (isTokenAuthError(error)) {
+          handleSignedOut();
+        }
+        if (!silent) {
+          notify?.({
+            type: "error",
+            message: `Drive sync failed to refresh access: ${error?.message || error}`,
+          });
+        }
+        return { ok: false, error };
       }
       const { payload, hash } = computePayload();
       if (hash === lastSyncedHashRef.current) {
@@ -1859,26 +1982,7 @@ function useDriveSync({
         return { ok: false, error };
       }
     },
-    [authRef, computePayload, config, notify, ready, setDriveState, uploadSnapshot],
-  );
-
-  const handleSignInChange = useCallback(
-    (isSignedIn) => {
-      setDriveState((prev) => ({ ...prev, signedIn: isSignedIn }));
-      if (!isSignedIn) {
-        fileIdRef.current = null;
-        lastSyncedHashRef.current = null;
-        pendingInitialFetchRef.current = false;
-        return;
-      }
-      if (!ready) {
-        pendingInitialFetchRef.current = true;
-      } else {
-        pendingInitialFetchRef.current = false;
-        void fetchAndApply({ silent: true });
-      }
-    },
-    [fetchAndApply, ready, setDriveState],
+    [computePayload, config, driveState.signedIn, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState, uploadSnapshot],
   );
 
   useEffect(() => {
@@ -1890,19 +1994,26 @@ function useDriveSync({
         const gapi = await initGoogleClient(config);
         if (cancelled || !isMountedRef.current) return;
         gapiRef.current = gapi;
-        const authInstance = gapi.auth2.getAuthInstance();
-        authRef.current = authInstance;
-        const signedIn = authInstance.isSignedIn.get();
-        setDriveState((prev) => ({ ...prev, status: "ready", signedIn }));
-        authInstance.isSignedIn.listen((isSignedIn) => {
-          if (!isMountedRef.current) return;
-          handleSignInChange(isSignedIn);
+        const googleIdentity = window.google?.accounts?.oauth2;
+        if (!googleIdentity) {
+          throw new Error("Google Identity Services unavailable");
+        }
+        tokenClientRef.current = googleIdentity.initTokenClient({
+          client_id: config.clientId,
+          scope: DRIVE_SCOPE,
+          callback: () => {},
         });
-        if (signedIn) {
-          if (ready) {
-            await fetchAndApply({ silent: true });
-          } else {
-            pendingInitialFetchRef.current = true;
+        setDriveState((prev) => ({ ...prev, status: "ready", error: null }));
+        try {
+          await requestAccessToken({ prompt: "none", silent: true });
+          if (cancelled || !isMountedRef.current) return;
+          await handleSignedIn();
+        } catch (error) {
+          if (isTokenAuthError(error)) {
+            handleSignedOut();
+          }
+          if (error?.code && error.code !== "interaction_required") {
+            console.warn("Silent Google sign-in failed", error);
           }
         }
       } catch (error) {
@@ -1915,7 +2026,7 @@ function useDriveSync({
     return () => {
       cancelled = true;
     };
-  }, [config, fetchAndApply, handleSignInChange, notify, ready, setDriveState]);
+  }, [config, handleSignedIn, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState]);
 
   useEffect(() => {
     if (!driveState.signedIn || driveState.status !== "ready" || !ready) return;
@@ -1943,32 +2054,42 @@ function useDriveSync({
   }, [driveState.signedIn, fetchAndApply, ready]);
 
   const signIn = useCallback(async () => {
-    if (!authRef.current) {
+    if (!tokenClientRef.current) {
       notify?.({ type: "warning", message: "Google Drive isn’t ready yet." });
       return false;
     }
     try {
-      await authRef.current.signIn();
+      await requestAccessToken({ prompt: "consent" });
+      await handleSignedIn();
       return true;
     } catch (error) {
-      if (error?.error !== "popup_closed_by_user") {
+      if (isTokenAuthError(error)) {
+        handleSignedOut();
+      }
+      if (!error?.code || !["access_denied", "popup_closed_by_user", "user_cancelled"].includes(String(error.code))) {
         notify?.({ type: "error", message: `Google sign-in failed: ${error?.message || error}` });
       }
       return false;
     }
-  }, [notify]);
+  }, [handleSignedIn, handleSignedOut, isTokenAuthError, notify, requestAccessToken]);
 
   const signOut = useCallback(async () => {
-    if (!authRef.current) return false;
+    if (!tokenClientRef.current && !accessTokenRef.current) return false;
     try {
-      await authRef.current.signOut();
+      const token = accessTokenRef.current;
+      if (token && window.google?.accounts?.oauth2?.revoke) {
+        await new Promise((resolve) => {
+          window.google.accounts.oauth2.revoke(token, () => resolve());
+        });
+      }
+      handleSignedOut();
       notify?.({ type: "info", message: "Disconnected from Google Drive." });
       return true;
     } catch (error) {
       notify?.({ type: "error", message: `Sign-out failed: ${error?.message || error}` });
       return false;
     }
-  }, [notify]);
+  }, [handleSignedOut, notify]);
 
   return {
     ...driveState,
