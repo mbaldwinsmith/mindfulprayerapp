@@ -149,6 +149,7 @@ const DRIVE_DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/driv
 const DRIVE_FILE_NAME = "regula-sync.json";
 const DRIVE_MIME_TYPE = "application/json";
 const DRIVE_SYNC_DEBOUNCE_MS = 2000;
+const DRIVE_DISABLED_MESSAGE = "Google Drive sync is disabled for this Regula site. Your data will stay on this device until an administrator enables the Drive API.";
 function extractGoogleApiErrorDetails(error) {
   if (!error) return null;
   const resultError = error?.result?.error;
@@ -1239,7 +1240,8 @@ function useDriveSync({
     signedIn: false,
     syncing: false,
     lastSync: null,
-    error: null
+    error: null,
+    disabledReason: config ? null : "not_configured"
   }));
   const driveState = driveStateRaw;
   const isMountedRef = useRef(true);
@@ -1266,6 +1268,43 @@ function useDriveSync({
       return next;
     });
   }, []);
+  const clearDriveSessionRefs = useCallback(() => {
+    accessTokenRef.current = null;
+    if (gapiRef.current) {
+      try {
+        gapiRef.current.client.setToken(null);
+      } catch (error) {
+        console.warn("Failed to clear Google API token", error);
+      }
+    }
+    fileIdRef.current = null;
+    lastSyncedHashRef.current = null;
+    pendingInitialFetchRef.current = false;
+    if (pendingSyncTimeoutRef.current) {
+      window.clearTimeout(pendingSyncTimeoutRef.current);
+      pendingSyncTimeoutRef.current = null;
+    }
+  }, []);
+  const handleDriveDisabled = useCallback(({
+    silent = false
+  } = {}) => {
+    clearDriveSessionRefs();
+    setDriveState(prev => ({
+      ...prev,
+      signedIn: false,
+      syncing: false,
+      status: "disabled",
+      error: null,
+      disabledReason: "drive_api_disabled"
+    }));
+    if (!silent) {
+      notify?.({
+        type: "warning",
+        message: DRIVE_DISABLED_MESSAGE,
+        autoCloseMs: 8000
+      });
+    }
+  }, [clearDriveSessionRefs, notify, setDriveState]);
   const ensureFileId = useCallback(async () => {
     if (!config) throw new Error("Google Drive sync is not configured");
     if (fileIdRef.current) return fileIdRef.current;
@@ -1408,6 +1447,13 @@ function useDriveSync({
       return snapshot;
     } catch (error) {
       const normalizedError = normalizeDriveApiError(error);
+      if (normalizedError?.code === "drive_api_disabled") {
+        console.warn("Drive download skipped: Drive API disabled", error);
+        handleDriveDisabled({
+          silent
+        });
+        return null;
+      }
       console.error("Drive download failed", error);
       if (normalizedError !== error) {
         console.error("Drive download failed (normalized)", normalizedError);
@@ -1425,7 +1471,7 @@ function useDriveSync({
       }
       return null;
     }
-  }, [applySnapshot, downloadSnapshot, notify, ready, setDriveState]);
+  }, [applySnapshot, downloadSnapshot, handleDriveDisabled, notify, ready, setDriveState]);
   const computePayload = useCallback(() => {
     const payload = {
       version: 1,
@@ -1464,18 +1510,13 @@ function useDriveSync({
     }
   }, [fetchAndApply, ready, setDriveState]);
   const handleSignedOut = useCallback(() => {
-    accessTokenRef.current = null;
-    if (gapiRef.current) {
-      gapiRef.current.client.setToken(null);
-    }
-    fileIdRef.current = null;
-    lastSyncedHashRef.current = null;
-    pendingInitialFetchRef.current = false;
+    clearDriveSessionRefs();
     setDriveState(prev => ({
       ...prev,
-      signedIn: false
+      signedIn: false,
+      disabledReason: null
     }));
-  }, [setDriveState]);
+  }, [clearDriveSessionRefs, setDriveState]);
   const isTokenAuthError = useCallback(error => {
     const code = error?.code || error?.error;
     if (!code) return false;
@@ -1535,6 +1576,20 @@ function useDriveSync({
       });
       return {
         ok: false
+      };
+    }
+    if (driveState.status === "disabled") {
+      if (!silent) {
+        const message = driveState.disabledReason === "drive_api_disabled" ? DRIVE_DISABLED_MESSAGE : "Google Drive sync is not available.";
+        notify?.({
+          type: "info",
+          message,
+          autoCloseMs: 8000
+        });
+      }
+      return {
+        ok: false,
+        disabled: true
       };
     }
     if (!driveState.signedIn) {
@@ -1616,6 +1671,17 @@ function useDriveSync({
       };
     } catch (error) {
       const normalizedError = normalizeDriveApiError(error);
+      if (normalizedError?.code === "drive_api_disabled") {
+        console.warn("Drive upload skipped: Drive API disabled", error);
+        handleDriveDisabled({
+          silent
+        });
+        return {
+          ok: false,
+          error: normalizedError,
+          disabled: true
+        };
+      }
       console.error("Drive sync failed", error);
       if (normalizedError !== error) {
         console.error("Drive sync failed (normalized)", normalizedError);
@@ -1636,7 +1702,7 @@ function useDriveSync({
         error: normalizedError
       };
     }
-  }, [computePayload, config, driveState.signedIn, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState, uploadSnapshot]);
+  }, [computePayload, config, driveState.disabledReason, driveState.signedIn, driveState.status, handleDriveDisabled, handleSignedOut, isTokenAuthError, notify, ready, requestAccessToken, setDriveState, uploadSnapshot]);
   useEffect(() => {
     if (!config || typeof window === "undefined") return;
     let cancelled = false;
@@ -1727,6 +1793,21 @@ function useDriveSync({
     }
   }, [driveState.signedIn, fetchAndApply, ready]);
   const signIn = useCallback(async () => {
+    if (driveState.status === "disabled") {
+      if (driveState.disabledReason === "drive_api_disabled") {
+        notify?.({
+          type: "warning",
+          message: DRIVE_DISABLED_MESSAGE,
+          autoCloseMs: 8000
+        });
+      } else {
+        notify?.({
+          type: "warning",
+          message: "Google Drive sync is not available."
+        });
+      }
+      return false;
+    }
     if (!tokenClientRef.current) {
       notify?.({
         type: "warning",
@@ -1752,7 +1833,7 @@ function useDriveSync({
       }
       return false;
     }
-  }, [handleSignedIn, handleSignedOut, isTokenAuthError, notify, requestAccessToken]);
+  }, [driveState.disabledReason, driveState.status, handleSignedIn, handleSignedOut, isTokenAuthError, notify, requestAccessToken]);
   const signOut = useCallback(async () => {
     if (!tokenClientRef.current && !accessTokenRef.current) return false;
     try {
@@ -1778,7 +1859,7 @@ function useDriveSync({
   }, [handleSignedOut, notify]);
   return {
     ...driveState,
-    available: Boolean(config),
+    available: Boolean(config) && driveState.status !== "disabled",
     signIn,
     signOut,
     syncNow
@@ -2209,7 +2290,7 @@ function App() {
     disabled: !driveSync.signedIn || driveSync.status !== "ready" || driveSync.syncing
   }, driveSync.syncing ? "Syncing…" : "Sync now")) : /*#__PURE__*/React.createElement("span", {
     className: "hidden text-xs sm:inline"
-  }, "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
+  }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? "Drive sync disabled by administrator" : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
