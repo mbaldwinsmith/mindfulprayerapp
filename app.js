@@ -2290,7 +2290,7 @@ function App() {
     disabled: !driveSync.signedIn || driveSync.status !== "ready" || driveSync.syncing
   }, driveSync.syncing ? "Syncing…" : "Sync now")) : /*#__PURE__*/React.createElement("span", {
     className: "hidden text-xs sm:inline"
-  }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? "Drive sync disabled by administrator" : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
+  }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? DRIVE_DISABLED_MESSAGE : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
