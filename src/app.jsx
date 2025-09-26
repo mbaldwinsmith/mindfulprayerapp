@@ -117,7 +117,7 @@ const DRIVE_FILE_NAME = "regula-sync.json";
 const DRIVE_MIME_TYPE = "application/json";
 const DRIVE_SYNC_DEBOUNCE_MS = 2000;
 const DRIVE_DISABLED_MESSAGE =
-  "Google Drive sync is disabled for this Regula site. Your data will stay on this device until an administrator enables the Drive API.";
+  "Google Drive sync isn't available on this Regula site. This static installation only uses Google OAuth without the Drive API, so your data will stay on this device.";
 
 function extractGoogleApiErrorDetails(error) {
   if (!error) return null;
@@ -153,9 +153,7 @@ function maybeWrapDriveApiDisabledError(error) {
     (hasDisabledReason || normalizedMessage.includes("google drive api has not been used") ||
       normalizedMessage.includes("enable it by visiting"))
   ) {
-    const friendly = new Error(
-      "Google Drive sync isn't available because the Google Drive API is disabled for this Regula installation. Ask the site administrator to enable the Drive API for the connected Google Cloud project, then try again.",
-    );
+    const friendly = new Error(DRIVE_DISABLED_MESSAGE);
     friendly.code = "drive_api_disabled";
     friendly.cause = error;
     friendly.details = details;
