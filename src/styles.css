@@ -19,10 +19,18 @@
 
   .btn-action {
     gap: 0.45rem;
-    padding: 0.5rem 0.9rem;
-    min-width: 6.5rem;
     justify-content: center;
     letter-spacing: -0.01em;
+  }
+
+  @media (max-width: 639px) {
+    .btn-action {
+      width: 2.75rem;
+      height: 2.75rem;
+      min-width: 0;
+      padding: 0;
+      gap: 0;
+    }
   }
 
   @media (min-width: 640px) {
