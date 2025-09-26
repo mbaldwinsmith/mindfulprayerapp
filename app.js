@@ -3603,9 +3603,9 @@ function TopNav({
   return /*#__PURE__*/React.createElement("div", {
     className: "glass-card grid gap-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2"
+    className: "flex flex-wrap gap-2 sm:flex-nowrap sm:items-center"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "btn w-full sm:w-auto",
+    className: "btn grow shrink basis-[calc(50%_-_0.5rem)] sm:basis-auto sm:grow-0 sm:shrink-0 sm:w-auto",
     onClick: () => setDate(prevDay(date, -1))
   }, "\u2190 Prev"), /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -3613,12 +3613,12 @@ function TopNav({
     onChange: e => {
       setDate(e.target.value);
     },
-    className: "rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 col-span-2 sm:col-span-1 sm:w-auto sm:flex-1"
+    className: "rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 grow shrink basis-[calc(50%_-_0.5rem)] sm:basis-auto sm:flex-1 sm:w-auto"
   }), /*#__PURE__*/React.createElement("button", {
-    className: "btn w-full sm:w-auto",
+    className: "btn grow shrink basis-[calc(50%_-_0.5rem)] sm:basis-auto sm:grow-0 sm:shrink-0 sm:w-auto",
     onClick: () => setDate(todayISO())
   }, "Today"), /*#__PURE__*/React.createElement("button", {
-    className: "btn w-full sm:w-auto",
+    className: "btn grow shrink basis-[calc(50%_-_0.5rem)] sm:basis-auto sm:grow-0 sm:shrink-0 sm:w-auto",
     onClick: () => setDate(prevDay(date, 1))
   }, "Next \u2192")), /*#__PURE__*/React.createElement(MiniMonth, {
     dots: dots,
