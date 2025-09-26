@@ -1410,9 +1410,7 @@ function App() {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
-  }, theme === "dark" ? "☀️ Light" : "🌙 Dark")), /*#__PURE__*/React.createElement("div", {
-    className: "text-right text-xs leading-snug text-emerald-700/80 sm:text-sm dark:text-emerald-300/80"
-  }, "Data stays on this device. Use the Backup / Restore tools below to move it between browsers."))))), /*#__PURE__*/React.createElement("main", {
+  }, theme === "dark" ? "☀️ Light" : "🌙 Dark")))))), /*#__PURE__*/React.createElement("main", {
     className: "relative z-10 mx-auto grid max-w-5xl gap-8 px-4 pb-12 pt-8"
   }, /*#__PURE__*/React.createElement("section", {
     className: "glass-card welcome-card"
