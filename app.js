@@ -1690,28 +1690,30 @@ function App() {
     className: "hidden",
     onChange: handleBackupFileChange
   }), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+    className: "btn btn-action",
     onClick: exportBackupJSON,
     type: "button",
-    title: "Download backup (JSON)",
-    "aria-label": "Download backup as JSON"
+    title: "Download backup (JSON)"
   }, /*#__PURE__*/React.createElement("i", {
     className: "fa-solid fa-download",
     "aria-hidden": "true"
-  })), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+  }), /*#__PURE__*/React.createElement("span", null, "Export")), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-action",
     onClick: triggerBackupImport,
     type: "button",
-    title: "Upload backup (JSON)",
-    "aria-label": "Upload backup from JSON"
+    title: "Upload backup (JSON)"
   }, /*#__PURE__*/React.createElement("i", {
     className: "fa-solid fa-upload",
     "aria-hidden": "true"
-  })), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+  }), /*#__PURE__*/React.createElement("span", null, "Restore")), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-action",
+    type: "button",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
     title: "Toggle theme"
-  }, theme === "dark" ? "☀️ Light" : "🌙 Dark")))))), /*#__PURE__*/React.createElement("main", {
+  }, /*#__PURE__*/React.createElement("i", {
+    className: `fa-solid ${theme === "dark" ? "fa-sun" : "fa-moon"}`,
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("span", null, theme === "dark" ? "Light Mode" : "Dark Mode"))))))), /*#__PURE__*/React.createElement("main", {
     className: "relative z-10 mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 pb-12 pt-8"
   }, /*#__PURE__*/React.createElement("section", {
     className: "glass-card welcome-card"
@@ -2709,7 +2711,7 @@ function Card({
   }, /*#__PURE__*/React.createElement("h2", {
     className: "card-title"
   }, title), /*#__PURE__*/React.createElement("div", {
-    className: `grid gap-3 text-sm text-zinc-600 dark:text-zinc-300 ${contentClassName}`
+    className: `grid gap-3 text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-300 ${contentClassName}`
   }, children));
 }
 function ToggleSwitch({
@@ -2977,14 +2979,14 @@ function MeditationTimer({
   }, secsLabel))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+    className: "btn btn-primary",
     onClick: handleToggle
   }, running ? "Pause" : seconds ? "Resume" : "Start"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: reset,
     disabled: running
   }, "Reset"), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+    className: "btn btn-primary",
     onClick: finish,
     disabled: running || seconds === 0
   }, "Finish & Log")), /*#__PURE__*/React.createElement("p", {
