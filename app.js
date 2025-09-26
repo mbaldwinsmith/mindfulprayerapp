@@ -241,7 +241,7 @@ function maybeWrapDriveInitError(error) {
   };
   if (lowerMessage.includes("api discovery response missing required fields") || Number.isFinite(code) && code === 502) {
     const wildcardSuggestion = typeof window !== "undefined" && window.location ? `${window.location.origin}/*` : "your site";
-    return buildWrappedError(`Google returned HTTP 502 while loading the Drive discovery document. This almost always means the API key's HTTP referrer restrictions don't cover ${currentLocation} or the change hasn't fully propagated. Update the restriction to include this URL (for example, ${wildcardSuggestion}) or temporarily remove it, then try again.`, "drive_discovery_referrer_mismatch");
+    return buildWrappedError(`Google returned HTTP 502 while loading the Drive discovery document. This usually means the API key's HTTP referrer restrictions don't cover ${currentLocation} or the change hasn't fully propagated, but it can also happen if Google's discovery service is temporarily unavailable. Confirm the restriction includes this URL (for example, ${wildcardSuggestion}) and, if it already does, wait a minute before trying again.`, "drive_discovery_referrer_mismatch");
   }
   if (reasons.some(reason => ["iprefererblocked", "forbidden", "refererblocked", "httprefererblocked"].includes(reason)) || lowerMessage.includes("referer")) {
     return buildWrappedError(`Google rejected the Drive discovery request because the API key doesn't allow calls from ${currentLocation}. Update the HTTP referrer restriction for your key or create a new unrestricted key to test, then reload the page.`, "drive_discovery_referrer_blocked");
