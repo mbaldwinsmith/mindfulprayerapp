@@ -4142,8 +4142,8 @@ function TopNav({ date, setDate, data }) {
   const dots = useMemo(() => monthDots(date, data), [date, data]);
   return (
     <div className="glass-card grid gap-4">
-      <div className="flex items-center gap-2">
-        <button className="btn" onClick={() => setDate(prevDay(date, -1))}>
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+        <button className="btn w-full sm:w-auto" onClick={() => setDate(prevDay(date, -1))}>
           ← Prev
         </button>
         <input
@@ -4152,15 +4152,14 @@ function TopNav({ date, setDate, data }) {
           onChange={(e) => {
             setDate(e.target.value);
           }}
-          className="rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100"
+          className="rounded-xl border border-white/60 bg-white/80 px-3 py-1 text-sm text-zinc-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 col-span-2 sm:col-span-1 sm:w-auto sm:flex-1"
         />
-        <button className="btn" onClick={() => setDate(todayISO())}>
+        <button className="btn w-full sm:w-auto" onClick={() => setDate(todayISO())}>
           Today
         </button>
-        <button className="btn" onClick={() => setDate(prevDay(date, 1))}>
+        <button className="btn w-full sm:w-auto" onClick={() => setDate(prevDay(date, 1))}>
           Next →
         </button>
-        <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400">Tip: Use ← → keys</span>
       </div>
       <MiniMonth dots={dots} onPick={setDate} current={date} />
     </div>
