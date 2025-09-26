@@ -1252,6 +1252,7 @@ function useDriveSync({
   const pendingInitialFetchRef = useRef(false);
   const pendingSyncTimeoutRef = useRef(null);
   const lastSyncedHashRef = useRef(null);
+  const driveDisabledNoticeRef = useRef(false);
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -1297,7 +1298,11 @@ function useDriveSync({
       error: null,
       disabledReason: "drive_api_disabled"
     }));
-    if (!silent) {
+    const shouldNotify = !driveDisabledNoticeRef.current || !silent;
+    if (!driveDisabledNoticeRef.current) {
+      driveDisabledNoticeRef.current = true;
+    }
+    if (shouldNotify) {
       notify?.({
         type: "warning",
         message: DRIVE_DISABLED_MESSAGE,
@@ -2288,8 +2293,8 @@ function App() {
       silent: false
     }),
     disabled: !driveSync.signedIn || driveSync.status !== "ready" || driveSync.syncing
-  }, driveSync.syncing ? "Syncing…" : "Sync now")) : /*#__PURE__*/React.createElement("span", {
-    className: "hidden text-xs sm:inline"
+  }, driveSync.syncing ? "Syncing…" : "Sync now")) : /*#__PURE__*/React.createElement("div", {
+    className: "max-w-[18rem] text-right text-xs leading-snug text-emerald-700/80 sm:max-w-xs sm:text-left sm:text-sm dark:text-emerald-300/80"
   }, driveSync.status === "disabled" && driveSync.disabledReason === "drive_api_disabled" ? DRIVE_DISABLED_MESSAGE : "Drive sync not configured"), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
